@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>爱心社储物间</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <img src="/assets/love-whale.jpg" alt="北京大学学生爱心社标识">
+        <div>
+          <span>北京大学学生爱心社</span>
+          <h1>爱心社储物间</h1>
+          <p id="syncStatus">正在同步...</p>
+        </div>
+      </div>
+      <label class="actor">
+        <span>操作人</span>
+        <input id="actorInput" autocomplete="name" placeholder="填写姓名">
+      </label>
+    </header>
+
+    <main class="layout">
+      <section class="welcome-panel">
+        <div class="welcome-copy">
+          <span class="eyebrow">小爱同学的物资小屋</span>
+          <h2>每一件物品，都能被认真找到和归还</h2>
+          <p>登记固定柜位、领取记录和归还数量，方便大家在活动前后快速确认物资状态。</p>
+        </div>
+        <img class="mascot" src="/assets/xiaoai-wave.jpg" alt="小爱同学挥手">
+      </section>
+
+      <section class="panel form-panel" aria-label="新增物品">
+        <h2>登记物品</h2>
+        <form id="itemForm">
+          <input name="name" placeholder="物品名称" required>
+          <div class="location-grid" data-location-picker>
+            <label>
+              <span>柜子/区域</span>
+              <select name="cabinet" data-cabinet required>
+                <option value="黑色柜子1">黑色柜子1</option>
+                <option value="黑色柜子2">黑色柜子2</option>
+                <option value="银色柜子1">银色柜子1</option>
+                <option value="银色柜子2">银色柜子2</option>
+                <option value="银色柜子3">银色柜子3</option>
+                <option value="银色柜子4">银色柜子4</option>
+                <option value="木柜（左）">木柜（左）</option>
+                <option value="木柜（右）">木柜（右）</option>
+                <option value="地面">地面</option>
+              </select>
+            </label>
+            <label>
+              <span>层数</span>
+              <select name="shelf" data-shelf required>
+                <option value="第1层">第1层</option>
+                <option value="第2层">第2层</option>
+                <option value="第3层">第3层</option>
+              </select>
+            </label>
+          </div>
+          <div class="split">
+            <input name="quantity" type="number" min="0" step="1" value="1" required>
+            <input name="unit" placeholder="单位" value="件">
+          </div>
+          <input name="owner" placeholder="负责人或所属部门">
+          <textarea name="note" placeholder="请注明作用，以及具体的箱子（如果有的话）"></textarea>
+          <button type="submit">添加</button>
+        </form>
+      </section>
+
+      <section class="panel inventory-panel" aria-label="物品清单">
+        <div class="section-head">
+          <h2>物品清单</h2>
+          <input id="searchInput" class="search" placeholder="搜索物品、柜子、层数、备注">
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>物品</th>
+                <th>位置</th>
+                <th>数量</th>
+                <th>负责人</th>
+                <th>备注</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody id="itemsBody"></tbody>
+          </table>
+          <div id="emptyState" class="empty">
+            <img src="/assets/xiaoai-peek.png" alt="小爱同学探头">
+            <span>还没有登记物品</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel log-panel" aria-label="最近记录">
+        <div class="section-head">
+          <h2>最近记录</h2>
+          <span id="itemCount" class="count">0 件物品</span>
+        </div>
+        <ul id="logList" class="logs"></ul>
+      </section>
+    </main>
+
+    <dialog id="editDialog">
+      <form id="editForm" method="dialog">
+        <h2>编辑物品</h2>
+        <input type="hidden" name="id">
+        <label>物品名称<input name="name" required></label>
+        <div class="location-grid" data-location-picker>
+          <label>
+            <span>柜子/区域</span>
+            <select name="cabinet" data-cabinet required>
+              <option value="黑色柜子1">黑色柜子1</option>
+              <option value="黑色柜子2">黑色柜子2</option>
+              <option value="银色柜子1">银色柜子1</option>
+              <option value="银色柜子2">银色柜子2</option>
+              <option value="银色柜子3">银色柜子3</option>
+              <option value="银色柜子4">银色柜子4</option>
+              <option value="木柜（左）">木柜（左）</option>
+              <option value="木柜（右）">木柜（右）</option>
+              <option value="地面">地面</option>
+            </select>
+          </label>
+          <label>
+            <span>层数</span>
+            <select name="shelf" data-shelf required>
+              <option value="第1层">第1层</option>
+              <option value="第2层">第2层</option>
+              <option value="第3层">第3层</option>
+            </select>
+          </label>
+        </div>
+        <div class="split">
+          <label>数量<input name="quantity" type="number" min="0" step="1" required></label>
+          <label>单位<input name="unit"></label>
+        </div>
+        <label>负责人<input name="owner"></label>
+        <label>备注<textarea name="note" placeholder="请注明作用，以及具体的箱子（如果有的话）"></textarea></label>
+        <div class="dialog-actions">
+          <button type="button" data-close>取消</button>
+          <button type="submit">保存</button>
+        </div>
+      </form>
+    </dialog>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <script src="/app.js?v=20260604-2"></script>
+  </body>
+</html>
