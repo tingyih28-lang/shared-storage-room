@@ -3,6 +3,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 import json
 import os
+import socket
 import uuid
 from datetime import datetime, timezone
 
@@ -13,10 +14,21 @@ DATA_FILE = DATA_DIR / "storage.json"
 PORT = int(os.environ.get("PORT", "4173"))
 
 
+class DualStackServer(ThreadingHTTPServer):
+    address_family = socket.AF_INET6
+
+    def server_bind(self):
+        self.socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
+        super().server_bind()
+
+
 def ensure_data_file():
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     if not DATA_FILE.exists():
-        DATA_FILE.write_text(json.dumps({"version": 1, "items": [], "logs": []}, ensure_ascii=False, indent=2), "utf-8")
+        DATA_FILE.write_text(
+            json.dumps({"version": 1, "items": [], "logs": []}, ensure_ascii=False, indent=2),
+            "utf-8",
+        )
 
 
 def read_data():
@@ -42,31 +54,52 @@ def clean_number(value):
     return max(0, number)
 
 
+def clean_category(value):
+    return "keeper" if value == "keeper" else "office"
+
+
 def now():
     return datetime.now(timezone.utc).isoformat()
 
 
+def normalize_item(item):
+    item.setdefault("category", "office")
+    item.setdefault("keeper", "")
+    item.setdefault("location", "")
+    item.setdefault("lastActor", "")
+    return item
+
+
 def add_log(data, action, item, actor, quantity, note):
+    clean_actor = clean_text(actor, 60)
+    if not clean_actor:
+        raise ValueError("请填写操作人")
+
     logs = data.setdefault("logs", [])
-    logs.insert(0, {
-        "id": str(uuid.uuid4()),
-        "at": now(),
-        "action": action,
-        "itemId": item["id"],
-        "itemName": item["name"],
-        "actor": clean_text(actor, 60) or "未署名",
-        "quantity": clean_number(quantity),
-        "note": clean_text(note, 160)
-    })
-    data["logs"] = logs[:300]
+    logs.insert(
+        0,
+        {
+            "id": str(uuid.uuid4()),
+            "at": now(),
+            "action": action,
+            "itemId": item["id"],
+            "itemName": item["name"],
+            "category": clean_category(item.get("category")),
+            "actor": clean_actor,
+            "quantity": clean_number(quantity),
+            "note": clean_text(note, 160),
+        },
+    )
+    item["lastActor"] = clean_actor
+    data["logs"] = logs[:500]
 
 
 def payload():
     data = read_data()
     return {
         "version": data.get("version", 1),
-        "items": data.get("items", []),
-        "logs": data.get("logs", [])
+        "items": [normalize_item(item) for item in data.get("items", [])],
+        "logs": data.get("logs", []),
     }
 
 
@@ -101,18 +134,28 @@ class Handler(SimpleHTTPRequestHandler):
             if path == "/api/items":
                 body = self.read_body()
                 data = read_data()
+                category = clean_category(body.get("category"))
                 item = {
                     "id": str(uuid.uuid4()),
+                    "category": category,
                     "name": clean_text(body.get("name")),
-                    "location": clean_text(body.get("location")),
+                    "location": clean_text(body.get("location")) if category == "office" else "",
+                    "keeper": clean_text(body.get("keeper"), 60) if category == "keeper" else "",
                     "quantity": clean_number(body.get("quantity")),
                     "unit": clean_text(body.get("unit"), 24) or "件",
                     "owner": clean_text(body.get("owner"), 60),
                     "note": clean_text(body.get("note"), 200),
-                    "updatedAt": now()
+                    "lastActor": "",
+                    "updatedAt": now(),
                 }
-                if not item["name"] or not item["location"]:
-                    self.send_json(400, {"error": "物品名称和位置不能为空"})
+                if not item["name"]:
+                    self.send_json(400, {"error": "物品名称不能为空"})
+                    return
+                if category == "office" and not item["location"]:
+                    self.send_json(400, {"error": "请选择位置"})
+                    return
+                if category == "keeper" and not item["keeper"]:
+                    self.send_json(400, {"error": "请填写骨干名字"})
                     return
                 data.setdefault("items", []).insert(0, item)
                 add_log(data, "新增", item, body.get("actor"), item["quantity"], item["note"])
@@ -128,6 +171,7 @@ class Handler(SimpleHTTPRequestHandler):
                 if not item:
                     self.send_json(404, {"error": "找不到这个物品"})
                     return
+                normalize_item(item)
                 amount = clean_number(body.get("quantity", 1))
                 if amount <= 0:
                     self.send_json(400, {"error": "数量必须大于 0"})
@@ -142,6 +186,9 @@ class Handler(SimpleHTTPRequestHandler):
                 write_data(data)
                 self.send_json(200, payload())
                 return
+        except ValueError as error:
+            self.send_json(400, {"error": str(error)})
+            return
         except Exception as error:
             self.send_json(500, {"error": str(error)})
             return
@@ -157,20 +204,32 @@ class Handler(SimpleHTTPRequestHandler):
                 if not item:
                     self.send_json(404, {"error": "找不到这个物品"})
                     return
+                category = clean_category(body.get("category", item.get("category")))
+                item["category"] = category
                 item["name"] = clean_text(body.get("name"))
-                item["location"] = clean_text(body.get("location"))
+                item["location"] = clean_text(body.get("location")) if category == "office" else ""
+                item["keeper"] = clean_text(body.get("keeper"), 60) if category == "keeper" else ""
                 item["quantity"] = clean_number(body.get("quantity"))
                 item["unit"] = clean_text(body.get("unit"), 24) or "件"
                 item["owner"] = clean_text(body.get("owner"), 60)
                 item["note"] = clean_text(body.get("note"), 200)
                 item["updatedAt"] = now()
-                if not item["name"] or not item["location"]:
-                    self.send_json(400, {"error": "物品名称和位置不能为空"})
+                if not item["name"]:
+                    self.send_json(400, {"error": "物品名称不能为空"})
+                    return
+                if category == "office" and not item["location"]:
+                    self.send_json(400, {"error": "请选择位置"})
+                    return
+                if category == "keeper" and not item["keeper"]:
+                    self.send_json(400, {"error": "请填写骨干名字"})
                     return
                 add_log(data, "修改", item, body.get("actor"), item["quantity"], item["note"])
                 write_data(data)
                 self.send_json(200, payload())
                 return
+        except ValueError as error:
+            self.send_json(400, {"error": str(error)})
+            return
         except Exception as error:
             self.send_json(500, {"error": str(error)})
             return
@@ -186,11 +245,15 @@ class Handler(SimpleHTTPRequestHandler):
                 if not item:
                     self.send_json(404, {"error": "找不到这个物品"})
                     return
-                data["items"] = [entry for entry in data.get("items", []) if entry["id"] != parts[2]]
+                normalize_item(item)
                 add_log(data, "删除", item, body.get("actor"), item["quantity"], body.get("note"))
+                data["items"] = [entry for entry in data.get("items", []) if entry["id"] != parts[2]]
                 write_data(data)
                 self.send_json(200, payload())
                 return
+        except ValueError as error:
+            self.send_json(400, {"error": str(error)})
+            return
         except Exception as error:
             self.send_json(500, {"error": str(error)})
             return
@@ -199,7 +262,8 @@ class Handler(SimpleHTTPRequestHandler):
 
 if __name__ == "__main__":
     ensure_data_file()
-    server = ThreadingHTTPServer(("0.0.0.0", PORT), Handler)
+    server = DualStackServer(("::", PORT), Handler)
     print(f"共享储物间已启动: http://localhost:{PORT}")
-    print(f"局域网用户可访问: http://本机IP:{PORT}")
+    print(f"IPv4 用户可访问: http://本机IPv4:{PORT}")
+    print(f"IPv6 用户可访问: http://[本机IPv6]:{PORT}")
     server.serve_forever()

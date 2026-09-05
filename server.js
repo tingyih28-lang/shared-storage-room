@@ -22,11 +22,7 @@ const mimeTypes = {
 function ensureDataFile() {
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
   if (!fs.existsSync(DATA_FILE)) {
-    fs.writeFileSync(
-      DATA_FILE,
-      JSON.stringify({ version: 1, items: [], logs: [] }, null, 2),
-      "utf8"
-    );
+    fs.writeFileSync(DATA_FILE, JSON.stringify({ version: 1, items: [], logs: [] }, null, 2), "utf8");
   }
 }
 
@@ -79,87 +75,122 @@ function cleanNumber(value) {
   return Math.max(0, Math.floor(number));
 }
 
+function cleanCategory(value) {
+  return value === "keeper" ? "keeper" : "office";
+}
+
 function now() {
   return new Date().toISOString();
 }
 
+function normalizeItem(item) {
+  item.category ||= "office";
+  item.keeper ||= "";
+  item.location ||= "";
+  item.lastActor ||= "";
+  return item;
+}
+
 function addLog(data, action, item, actor, quantity, note) {
+  const cleanActor = cleanText(actor, 60);
+  if (!cleanActor) {
+    const error = new Error("请填写操作人");
+    error.status = 400;
+    throw error;
+  }
+
   data.logs.unshift({
     id: crypto.randomUUID(),
     at: now(),
     action,
     itemId: item.id,
     itemName: item.name,
-    actor: cleanText(actor, 60) || "未署名",
+    category: cleanCategory(item.category),
+    actor: cleanActor,
     quantity: cleanNumber(quantity),
     note: cleanText(note, 160)
   });
-  data.logs = data.logs.slice(0, 300);
+  item.lastActor = cleanActor;
+  data.logs = data.logs.slice(0, 500);
 }
 
 function listPayload() {
   const data = readData();
   return {
     version: data.version || 1,
-    items: data.items || [],
+    items: (data.items || []).map(normalizeItem),
     logs: data.logs || []
   };
 }
 
+function validateItem(item) {
+  if (!item.name) return "物品名称不能为空";
+  if (item.category === "office" && !item.location) return "请选择位置";
+  if (item.category === "keeper" && !item.keeper) return "请填写骨干名字";
+  return "";
+}
+
 async function handleApi(req, res) {
   try {
-    if (req.method === "GET" && req.url === "/api/state") {
+    const url = new URL(req.url, `http://${req.headers.host || "localhost"}`);
+    if (req.method === "GET" && url.pathname === "/api/state") {
       return sendJson(res, 200, listPayload());
     }
 
-    if (req.method === "POST" && req.url === "/api/items") {
+    if (req.method === "POST" && url.pathname === "/api/items") {
       const body = await readBody(req);
       const data = readData();
+      const category = cleanCategory(body.category);
       const item = {
         id: crypto.randomUUID(),
+        category,
         name: cleanText(body.name),
-        location: cleanText(body.location),
+        location: category === "office" ? cleanText(body.location) : "",
+        keeper: category === "keeper" ? cleanText(body.keeper, 60) : "",
         quantity: cleanNumber(body.quantity),
         unit: cleanText(body.unit, 24) || "件",
         owner: cleanText(body.owner, 60),
         note: cleanText(body.note, 200),
+        lastActor: "",
         updatedAt: now()
       };
-      if (!item.name || !item.location) {
-        return sendJson(res, 400, { error: "物品名称和位置不能为空" });
-      }
+      const validationError = validateItem(item);
+      if (validationError) return sendJson(res, 400, { error: validationError });
       data.items.unshift(item);
       addLog(data, "新增", item, body.actor, item.quantity, item.note);
       writeData(data);
       return sendJson(res, 200, listPayload());
     }
 
-    const itemMatch = req.url.match(/^\/api\/items\/([^/]+)(?:\/(take|return))?$/);
+    const itemMatch = url.pathname.match(/^\/api\/items\/([^/]+)(?:\/(take|return))?$/);
     if (itemMatch && (req.method === "PUT" || req.method === "DELETE" || req.method === "POST")) {
       const [, id, actionPath] = itemMatch;
       const body = await readBody(req);
       const data = readData();
-      const item = data.items.find(entry => entry.id === id);
+      const item = (data.items || []).find(entry => entry.id === id);
       if (!item) return sendJson(res, 404, { error: "找不到这个物品" });
+      normalizeItem(item);
 
       if (req.method === "DELETE") {
-        data.items = data.items.filter(entry => entry.id !== id);
         addLog(data, "删除", item, body.actor, item.quantity, body.note);
+        data.items = data.items.filter(entry => entry.id !== id);
         writeData(data);
         return sendJson(res, 200, listPayload());
       }
 
       if (req.method === "PUT") {
+        const category = cleanCategory(body.category || item.category);
+        item.category = category;
         item.name = cleanText(body.name);
-        item.location = cleanText(body.location);
+        item.location = category === "office" ? cleanText(body.location) : "";
+        item.keeper = category === "keeper" ? cleanText(body.keeper, 60) : "";
         item.quantity = cleanNumber(body.quantity);
         item.unit = cleanText(body.unit, 24) || "件";
         item.owner = cleanText(body.owner, 60);
         item.note = cleanText(body.note, 200);
         item.updatedAt = now();
-        if (!item.name || !item.location) {
-          return sendJson(res, 400, { error: "物品名称和位置不能为空" });
-        }
+        const validationError = validateItem(item);
+        if (validationError) return sendJson(res, 400, { error: validationError });
         addLog(data, "修改", item, body.actor, item.quantity, item.note);
         writeData(data);
         return sendJson(res, 200, listPayload());
@@ -181,7 +212,7 @@ async function handleApi(req, res) {
 
     sendJson(res, 404, { error: "接口不存在" });
   } catch (error) {
-    sendJson(res, 500, { error: error.message || "服务器错误" });
+    sendJson(res, error.status || 500, { error: error.message || "服务器错误" });
   }
 }
 
@@ -217,7 +248,8 @@ http
     }
     serveStatic(req, res);
   })
-  .listen(PORT, "0.0.0.0", () => {
+  .listen(PORT, "::", () => {
     console.log(`共享储物间已启动: http://localhost:${PORT}`);
-    console.log(`局域网用户可访问: http://本机IP:${PORT}`);
+    console.log(`IPv4 用户可访问: http://本机IPv4:${PORT}`);
+    console.log(`IPv6 用户可访问: http://[本机IPv6]:${PORT}`);
   });

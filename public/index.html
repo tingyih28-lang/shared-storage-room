@@ -3,137 +3,179 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>爱心社储物间</title>
-    <link rel="stylesheet" href="/styles.css">
+    <title>爱心社物资管理</title>
+    <link rel="stylesheet" href="./styles.css?v=20260904-1">
   </head>
   <body>
-    <header class="topbar">
-      <div class="brand">
-        <img src="/assets/love-whale.jpg" alt="北京大学学生爱心社标识">
-        <div>
-          <span>北京大学学生爱心社</span>
-          <h1>爱心社储物间</h1>
-          <p id="syncStatus">正在同步...</p>
-        </div>
+    <section id="portal" class="portal" aria-label="选择管理系统">
+      <div class="portal-copy">
+        <span class="eyebrow">北京大学学生爱心社</span>
+        <h1>小爱同学的物资小屋</h1>
+        <p>请选择要进入的管理页面。</p>
       </div>
-      <label class="actor">
-        <span>操作人</span>
-        <input id="actorInput" autocomplete="name" placeholder="填写姓名">
-      </label>
-    </header>
+      <div class="portal-options">
+        <button class="portal-card" type="button" data-enter-mode="keeper">
+          <img src="./assets/xiaoai-serious.png" alt="小爱同学认真保管">
+          <span class="portal-card-title">骨干保管</span>
+          <small>按骨干姓名登记物品</small>
+        </button>
+        <button class="portal-card" type="button" data-enter-mode="office">
+          <img src="./assets/xiaoai-sparkle.jpg" alt="小爱同学欢迎进入社办">
+          <span class="portal-card-title">进入社办</span>
+          <small>按柜子和层数登记物品</small>
+        </button>
+      </div>
+    </section>
 
-    <main class="layout">
-      <section class="welcome-panel">
-        <div class="welcome-copy">
-          <span class="eyebrow">小爱同学的物资小屋</span>
-          <h2>每一件物品，都能被认真找到和归还</h2>
-          <p>登记固定柜位、领取记录和归还数量，方便大家在活动前后快速确认物资状态。</p>
+    <div id="appShell" class="app-shell" hidden>
+      <aside id="fileWarning" class="file-warning" hidden>
+        当前是直接打开的 HTML 预览，不能保存或同步数据。请启动服务器后访问
+        <strong>http://127.0.0.1:4173/</strong>。
+      </aside>
+      <header class="topbar">
+        <div class="brand">
+          <button id="backToPortal" class="icon-button" type="button" aria-label="返回入口">←</button>
+          <img src="./assets/love-whale.jpg" alt="北京大学学生爱心社标识">
+          <div>
+            <span>北京大学学生爱心社</span>
+            <h1 id="pageTitle">爱心社储物间</h1>
+            <p id="syncStatus">正在同步...</p>
+          </div>
         </div>
-        <img class="mascot" src="/assets/xiaoai-wave.jpg" alt="小爱同学挥手">
-      </section>
+        <label class="actor">
+          <span>操作人 <strong>* 必填</strong></span>
+          <input id="actorInput" autocomplete="name" placeholder="请填写姓名" required>
+        </label>
+      </header>
 
-      <section class="panel form-panel" aria-label="新增物品">
-        <h2>登记物品</h2>
-        <form id="itemForm">
-          <input name="name" placeholder="物品名称" required>
-          <div class="location-grid" data-location-picker>
-            <label>
-              <span>柜子/区域</span>
-              <select name="cabinet" data-cabinet required>
-                <option value="黑色柜子1">黑色柜子1</option>
-                <option value="黑色柜子2">黑色柜子2</option>
-                <option value="银色柜子1">银色柜子1</option>
-                <option value="银色柜子2">银色柜子2</option>
-                <option value="银色柜子3">银色柜子3</option>
-                <option value="银色柜子4">银色柜子4</option>
-                <option value="木柜（左）">木柜（左）</option>
-                <option value="木柜（右）">木柜（右）</option>
-                <option value="地面">地面</option>
-              </select>
+      <main class="layout">
+        <section class="welcome-panel">
+          <div class="welcome-copy">
+            <span class="eyebrow" id="modeEyebrow">小爱同学的物资小屋</span>
+            <h2 id="heroTitle">每一件物品，都能被认真找到和归还</h2>
+            <p id="heroText">登记固定柜位、领取记录和归还数量，方便大家在活动前后快速确认物资状态。</p>
+          </div>
+          <img id="heroMascot" class="mascot" src="./assets/xiaoai-wave.jpg" alt="小爱同学">
+        </section>
+
+        <section class="panel form-panel" aria-label="新增物品">
+          <h2 id="formTitle">登记物品</h2>
+          <form id="itemForm">
+            <label class="field">
+              <span>物品名称 <strong>*</strong></span>
+              <input name="name" placeholder="请输入物品名称" required>
             </label>
-            <label>
-              <span>层数</span>
-              <select name="shelf" data-shelf required>
-                <option value="第1层">第1层</option>
-                <option value="第2层">第2层</option>
-                <option value="第3层">第3层</option>
-              </select>
+            <div id="officeFields" class="location-grid" data-location-picker>
+              <label>
+                <span>柜子/区域</span>
+                <select name="cabinet" data-cabinet required></select>
+              </label>
+              <label>
+                <span>层数</span>
+                <select name="shelf" data-shelf required></select>
+              </label>
+            </div>
+            <label id="keeperField" class="field" hidden>
+              <span>骨干名字 <strong>*</strong></span>
+              <input name="keeper" placeholder="负责保管的骨干" disabled>
+            </label>
+            <div class="split">
+              <label class="field">
+                <span>数量 <strong>*</strong></span>
+                <input name="quantity" type="number" min="0" step="1" value="1" required>
+              </label>
+              <label class="field">
+                <span>单位</span>
+                <input name="unit" placeholder="如：件、箱" value="件">
+              </label>
+            </div>
+            <label class="field">
+              <span>负责人或所属部门</span>
+              <input name="owner" placeholder="请输入负责人或所属部门">
+            </label>
+            <label class="field">
+              <span>备注</span>
+              <textarea name="note" placeholder="请注明作用，以及具体的箱子（如果有的话）"></textarea>
+            </label>
+            <button type="submit">添加</button>
+          </form>
+        </section>
+
+        <section class="panel inventory-panel" aria-label="物品清单">
+          <div class="section-head">
+            <h2 id="listTitle">物品清单</h2>
+            <label class="search-field">
+              <span class="visually-hidden">搜索物品清单</span>
+              <input id="searchInput" class="search" placeholder="搜索物品、位置、骨干、操作人、备注">
             </label>
           </div>
-          <div class="split">
-            <input name="quantity" type="number" min="0" step="1" value="1" required>
-            <input name="unit" placeholder="单位" value="件">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>物品</th>
+                  <th id="placeColumn">位置</th>
+                  <th>数量</th>
+                  <th>负责人</th>
+                  <th>最近操作人</th>
+                  <th>备注</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody id="itemsBody"></tbody>
+            </table>
+            <div id="emptyState" class="empty">
+              <img src="./assets/xiaoai-calm.jpg" alt="小爱同学等待登记">
+              <span>还没有登记物品</span>
+            </div>
           </div>
-          <input name="owner" placeholder="负责人或所属部门">
-          <textarea name="note" placeholder="请注明作用，以及具体的箱子（如果有的话）"></textarea>
-          <button type="submit">添加</button>
-        </form>
-      </section>
+        </section>
 
-      <section class="panel inventory-panel" aria-label="物品清单">
-        <div class="section-head">
-          <h2>物品清单</h2>
-          <input id="searchInput" class="search" placeholder="搜索物品、柜子、层数、备注">
-        </div>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>物品</th>
-                <th>位置</th>
-                <th>数量</th>
-                <th>负责人</th>
-                <th>备注</th>
-                <th>操作</th>
-              </tr>
-            </thead>
-            <tbody id="itemsBody"></tbody>
-          </table>
-          <div id="emptyState" class="empty">
-            <img src="/assets/xiaoai-peek.png" alt="小爱同学探头">
-            <span>还没有登记物品</span>
+        <section class="panel log-panel" aria-label="最近记录">
+          <div class="section-head">
+            <h2>最近记录</h2>
+            <span id="itemCount" class="count">0 件物品</span>
           </div>
-        </div>
-      </section>
+          <ul id="logList" class="logs"></ul>
+        </section>
+      </main>
+    </div>
 
-      <section class="panel log-panel" aria-label="最近记录">
-        <div class="section-head">
-          <h2>最近记录</h2>
-          <span id="itemCount" class="count">0 件物品</span>
+    <dialog id="detailDialog">
+      <article class="detail-card">
+        <div class="dialog-head">
+          <div>
+            <span class="eyebrow" id="detailType">详情</span>
+            <h2 id="detailName">物品详情</h2>
+          </div>
+          <button type="button" class="ghost-button" data-detail-close>关闭</button>
         </div>
-        <ul id="logList" class="logs"></ul>
-      </section>
-    </main>
+        <dl id="detailMeta" class="detail-meta"></dl>
+        <h3>近期 10 次操作</h3>
+        <ol id="detailLogs" class="detail-logs"></ol>
+      </article>
+    </dialog>
 
     <dialog id="editDialog">
       <form id="editForm" method="dialog">
         <h2>编辑物品</h2>
         <input type="hidden" name="id">
+        <input type="hidden" name="category">
         <label>物品名称<input name="name" required></label>
-        <div class="location-grid" data-location-picker>
+        <div id="editOfficeFields" class="location-grid" data-location-picker>
           <label>
             <span>柜子/区域</span>
-            <select name="cabinet" data-cabinet required>
-              <option value="黑色柜子1">黑色柜子1</option>
-              <option value="黑色柜子2">黑色柜子2</option>
-              <option value="银色柜子1">银色柜子1</option>
-              <option value="银色柜子2">银色柜子2</option>
-              <option value="银色柜子3">银色柜子3</option>
-              <option value="银色柜子4">银色柜子4</option>
-              <option value="木柜（左）">木柜（左）</option>
-              <option value="木柜（右）">木柜（右）</option>
-              <option value="地面">地面</option>
-            </select>
+            <select name="cabinet" data-cabinet required></select>
           </label>
           <label>
             <span>层数</span>
-            <select name="shelf" data-shelf required>
-              <option value="第1层">第1层</option>
-              <option value="第2层">第2层</option>
-              <option value="第3层">第3层</option>
-            </select>
+            <select name="shelf" data-shelf required></select>
           </label>
         </div>
+        <label id="editKeeperField" class="field" hidden>
+          <span>骨干名字 <strong>*</strong></span>
+          <input name="keeper" placeholder="负责保管的骨干" disabled>
+        </label>
         <div class="split">
           <label>数量<input name="quantity" type="number" min="0" step="1" required></label>
           <label>单位<input name="unit"></label>
@@ -147,7 +189,27 @@
       </form>
     </dialog>
 
+    <dialog id="quantityDialog">
+      <form id="quantityForm">
+        <div class="dialog-head">
+          <div>
+            <span class="eyebrow" id="quantityType">物品操作</span>
+            <h2 id="quantityTitle">领取物品</h2>
+          </div>
+          <button type="button" class="ghost-button" data-quantity-close>关闭</button>
+        </div>
+        <input type="hidden" name="itemId">
+        <input type="hidden" name="mode">
+        <label>数量<input name="quantity" type="number" min="1" step="1" value="1" required></label>
+        <label>备注<textarea name="note" placeholder="可填写用途、去向或归还说明"></textarea></label>
+        <div class="dialog-actions">
+          <button type="button" data-quantity-close>取消</button>
+          <button type="submit" id="quantitySubmit">确认领取</button>
+        </div>
+      </form>
+    </dialog>
+
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
-    <script src="/app.js?v=20260604-2"></script>
+    <script src="./app.js?v=20260904-1"></script>
   </body>
 </html>
