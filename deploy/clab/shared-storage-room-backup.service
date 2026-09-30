@@ -1,0 +1,6 @@
+[Unit]
+Description=Back up PKU Love Club storage room data
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/shared-storage-room-backup

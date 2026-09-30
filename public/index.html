@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>爱心社物资管理</title>
-    <link rel="stylesheet" href="./styles.css?v=20260904-1">
+    <link rel="stylesheet" href="./styles.css?v=20260930-1">
   </head>
   <body>
     <section id="portal" class="portal" aria-label="选择管理系统">
@@ -42,11 +42,24 @@
             <p id="syncStatus">正在同步...</p>
           </div>
         </div>
-        <label class="actor">
-          <span>操作人 <strong>* 必填</strong></span>
-          <input id="actorInput" autocomplete="name" placeholder="请填写姓名" required>
-        </label>
+        <div class="topbar-tools">
+          <label id="actorField" class="actor" hidden>
+            <span>操作人 <strong>* 必填</strong></span>
+            <input id="actorInput" autocomplete="name" placeholder="请填写姓名" required>
+          </label>
+          <div class="auth-controls">
+            <span id="accessBadge" class="access-badge">只读访问</span>
+            <button id="loginButton" class="secondary-button" type="button">管理员登录</button>
+            <button id="changePasswordButton" class="secondary-button" type="button" hidden>修改密码</button>
+            <button id="logoutButton" class="ghost-button" type="button" hidden>退出</button>
+          </div>
+        </div>
       </header>
+
+      <aside id="viewerNotice" class="viewer-notice">
+        当前为只读浏览；管理员登录后可以登记、领取、归还、编辑和删除物资。
+        <button type="button" data-open-login>管理员登录</button>
+      </aside>
 
       <main class="layout">
         <section class="welcome-panel">
@@ -58,7 +71,59 @@
           <img id="heroMascot" class="mascot" src="./assets/xiaoai-wave.jpg" alt="小爱同学">
         </section>
 
-        <section class="panel form-panel" aria-label="新增物品">
+        <section id="officeGuidePanel" class="panel office-guide-panel" hidden>
+          <div class="guide-copy">
+            <span class="eyebrow">社办置物指南</span>
+            <h2>先看分区，再去对应货架寻找</h2>
+            <dl class="guide-rules">
+              <div><dt>银色柜子</dt><dd>1：儿童部、护老部；2：资助部、项目组；3：无障碍部、手语分社；4：组织部、宣传部、外联部。</dd></div>
+              <div><dt>黑色柜子</dt><dd>1：社团文物和有留存意义的物品；2：不常用物资和大型物资。</dd></div>
+              <div><dt>木柜</dt><dd>左侧放易拉宝拆下的架子和卷起的画面，右侧放近期活动的临时物资。</dd></div>
+            </dl>
+          </div>
+          <figure class="guide-figure">
+            <a href="./assets/storage-guide.jpg" target="_blank" rel="noopener">
+              <img src="./assets/storage-guide.jpg" alt="北京大学学生爱心社社办置物指南平面图和六条置物规则">
+            </a>
+            <figcaption>点击图片可查看完整尺寸</figcaption>
+          </figure>
+        </section>
+
+        <section id="storageVisualizer" class="panel storage-visualizer" hidden>
+          <div class="visualizer-head">
+            <div>
+              <span class="eyebrow">社办可视化区域</span>
+              <h2>点击货架，查看各层储物箱</h2>
+            </div>
+            <span id="boxCount" class="count">0 个储物箱</span>
+          </div>
+
+          <nav class="storage-map" aria-label="社办货架平面图">
+            <a href="#shelf-visualizer" class="map-zone map-black-1" data-cabinet-link="黑色柜子1"><span>黑色柜子1</span><small data-box-count="黑色柜子1">0 箱</small></a>
+            <a href="#shelf-visualizer" class="map-zone map-black-2" data-cabinet-link="黑色柜子2"><span>黑色柜子2</span><small data-box-count="黑色柜子2">0 箱</small></a>
+            <div class="map-zone map-desk" aria-hidden="true">旧桌</div>
+            <a href="#shelf-visualizer" class="map-zone map-silver-1" data-cabinet-link="银色柜子1"><span>银色柜子1</span><small data-box-count="银色柜子1">0 箱</small></a>
+            <a href="#shelf-visualizer" class="map-zone map-silver-2" data-cabinet-link="银色柜子2"><span>银色柜子2</span><small data-box-count="银色柜子2">0 箱</small></a>
+            <a href="#shelf-visualizer" class="map-zone map-silver-3" data-cabinet-link="银色柜子3"><span>银色柜子3</span><small data-box-count="银色柜子3">0 箱</small></a>
+            <a href="#shelf-visualizer" class="map-zone map-silver-4" data-cabinet-link="银色柜子4"><span>银色柜子4</span><small data-box-count="银色柜子4">0 箱</small></a>
+            <a href="#shelf-visualizer" class="map-zone map-wood-left" data-cabinet-link="木柜（左）"><span>木柜（左）</span><small data-box-count="木柜（左）">0 箱</small></a>
+            <a href="#shelf-visualizer" class="map-zone map-wood-right" data-cabinet-link="木柜（右）"><span>木柜（右）</span><small data-box-count="木柜（右）">0 箱</small></a>
+            <a href="#shelf-visualizer" class="map-zone map-floor" data-cabinet-link="地面"><span>地面区域</span><small data-box-count="地面">0 箱</small></a>
+          </nav>
+
+          <div id="shelf-visualizer" class="shelf-visualizer" tabindex="-1">
+            <div class="shelf-heading">
+              <div>
+                <span class="eyebrow">当前货架</span>
+                <h3 id="selectedCabinetName">黑色柜子1</h3>
+              </div>
+              <button id="addBoxButton" type="button">添加储物箱</button>
+            </div>
+            <div id="shelfLayers" class="shelf-layers"></div>
+          </div>
+        </section>
+
+        <section id="formPanel" class="panel form-panel" aria-label="新增物品" hidden>
           <h2 id="formTitle">登记物品</h2>
           <form id="itemForm">
             <label class="field">
@@ -209,7 +274,77 @@
       </form>
     </dialog>
 
+    <dialog id="boxDialog">
+      <form id="boxForm">
+        <div class="dialog-head">
+          <div>
+            <span class="eyebrow">储物箱设置</span>
+            <h2 id="boxDialogTitle">添加储物箱</h2>
+          </div>
+          <button type="button" class="ghost-button" data-box-close>关闭</button>
+        </div>
+        <input type="hidden" name="id">
+        <label>储物箱名称或编号 <strong>*</strong><input name="label" placeholder="如：手语分社 1 号箱" required></label>
+        <div class="location-grid" data-location-picker>
+          <label>
+            <span>柜子/区域 <strong>*</strong></span>
+            <select name="cabinet" data-cabinet required></select>
+          </label>
+          <label>
+            <span>层数 <strong>*</strong></span>
+            <select name="shelf" data-shelf required></select>
+          </label>
+        </div>
+        <label>具体位置 <strong>*</strong><input name="position" placeholder="如：左侧、靠墙、从左第 2 个" required></label>
+        <label>所属部组 <strong>*</strong><input name="department" placeholder="如：组织部、手语分社" required></label>
+        <label>活动名称<input name="activity" placeholder="日常物资可留空"></label>
+        <label>物资清单文档链接 <strong>*</strong><input name="documentUrl" type="url" placeholder="https://..." required></label>
+        <div class="dialog-actions">
+          <button type="button" data-box-close>取消</button>
+          <button type="submit">保存储物箱</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="loginDialog" class="auth-dialog">
+      <form id="loginForm">
+        <div class="dialog-head">
+          <div>
+            <span class="eyebrow">管理员账户</span>
+            <h2>登录后管理物资</h2>
+          </div>
+          <button type="button" class="ghost-button" data-login-close>关闭</button>
+        </div>
+        <p class="dialog-note">账号固定为 admin，请输入管理员密码。</p>
+        <label>管理员密码<input name="password" type="password" autocomplete="current-password" required></label>
+        <div class="dialog-actions">
+          <button type="button" class="ghost-button" data-login-close>取消</button>
+          <button type="submit">登录</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="passwordDialog" class="auth-dialog">
+      <form id="passwordForm">
+        <div class="dialog-head">
+          <div>
+            <span class="eyebrow">管理员安全</span>
+            <h2>修改管理员密码</h2>
+          </div>
+          <button type="button" class="ghost-button" data-password-close>关闭</button>
+        </div>
+        <p class="dialog-note">新密码至少 10 个字符，建议同时包含字母、数字和符号。</p>
+        <label>当前密码<input name="currentPassword" type="password" autocomplete="current-password" required></label>
+        <label>新密码<input name="newPassword" type="password" autocomplete="new-password" minlength="10" maxlength="128" required></label>
+        <label>再次输入新密码<input name="confirmPassword" type="password" autocomplete="new-password" minlength="10" maxlength="128" required></label>
+        <div class="dialog-actions">
+          <button type="button" class="ghost-button" data-password-close>取消</button>
+          <button type="submit">保存新密码</button>
+        </div>
+      </form>
+    </dialog>
+
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
-    <script src="./app.js?v=20260904-1"></script>
+    <script src="./app.js?v=20260930-1"></script>
   </body>
 </html>

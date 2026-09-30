@@ -1,4 +1,6 @@
 data/storage.json
+data/auth.json
+data/backups/
 __pycache__/
 *.pyc
 .DS_Store

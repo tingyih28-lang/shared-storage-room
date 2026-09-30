@@ -39,8 +39,12 @@ const state = {
   version: 0,
   items: [],
   logs: [],
+  boxes: [],
+  auth: { authenticated: false, mustChange: false },
   mode: ""
 };
+
+let selectedCabinet = locationConfig[0].name;
 
 const portal = document.querySelector("#portal");
 const appShell = document.querySelector("#appShell");
@@ -50,10 +54,26 @@ const editForm = document.querySelector("#editForm");
 const detailDialog = document.querySelector("#detailDialog");
 const quantityDialog = document.querySelector("#quantityDialog");
 const quantityForm = document.querySelector("#quantityForm");
+const boxDialog = document.querySelector("#boxDialog");
+const boxForm = document.querySelector("#boxForm");
+const loginDialog = document.querySelector("#loginDialog");
+const loginForm = document.querySelector("#loginForm");
+const passwordDialog = document.querySelector("#passwordDialog");
+const passwordForm = document.querySelector("#passwordForm");
+const officeGuidePanel = document.querySelector("#officeGuidePanel");
+const storageVisualizer = document.querySelector("#storageVisualizer");
+const shelfLayers = document.querySelector("#shelfLayers");
+const formPanel = document.querySelector("#formPanel");
 const itemsBody = document.querySelector("#itemsBody");
 const emptyState = document.querySelector("#emptyState");
 const searchInput = document.querySelector("#searchInput");
 const actorInput = document.querySelector("#actorInput");
+const actorField = document.querySelector("#actorField");
+const viewerNotice = document.querySelector("#viewerNotice");
+const accessBadge = document.querySelector("#accessBadge");
+const loginButton = document.querySelector("#loginButton");
+const changePasswordButton = document.querySelector("#changePasswordButton");
+const logoutButton = document.querySelector("#logoutButton");
 const syncStatus = document.querySelector("#syncStatus");
 const itemCount = document.querySelector("#itemCount");
 const logList = document.querySelector("#logList");
@@ -68,7 +88,56 @@ function actor() {
   return actorInput.value.trim();
 }
 
+function isAdmin() {
+  return Boolean(state.auth.authenticated);
+}
+
+function openLoginDialog() {
+  loginForm.reset();
+  loginDialog.showModal();
+  loginForm.password.focus();
+}
+
+function openPasswordDialog(currentPassword = "") {
+  if (passwordDialog.open) return;
+  passwordForm.reset();
+  passwordForm.currentPassword.value = currentPassword;
+  passwordDialog.showModal();
+  (currentPassword ? passwordForm.newPassword : passwordForm.currentPassword).focus();
+}
+
+function updateAuthUI() {
+  const authenticated = isAdmin();
+  actorField.hidden = !authenticated;
+  formPanel.hidden = !authenticated;
+  viewerNotice.hidden = authenticated;
+  loginButton.hidden = authenticated;
+  changePasswordButton.hidden = !authenticated;
+  logoutButton.hidden = !authenticated;
+  accessBadge.textContent = authenticated ? "管理员模式" : "只读访问";
+  accessBadge.classList.toggle("admin", authenticated);
+  document.querySelector("#addBoxButton").hidden = !authenticated;
+
+  if (!authenticated) {
+    [editDialog, quantityDialog, boxDialog].forEach(dialog => {
+      if (dialog.open) dialog.close();
+    });
+  } else if (state.auth.mustChange && !passwordDialog.open) {
+    setTimeout(() => {
+      if (state.auth.mustChange && !passwordDialog.open) openPasswordDialog();
+    }, 0);
+  }
+}
+
+function requireAdmin() {
+  if (isAdmin()) return true;
+  showToast("请先登录管理员账户");
+  openLoginDialog();
+  return false;
+}
+
 function requireActor() {
+  if (!requireAdmin()) return false;
   if (actor()) return true;
   actorInput.focus();
   showToast("请先填写操作人");
@@ -159,10 +228,18 @@ async function api(url, options = {}) {
   }
   const response = await fetch(url, {
     headers: { "Content-Type": "application/json" },
+    credentials: "same-origin",
     ...options
   });
   const payload = await response.json();
-  if (!response.ok) throw new Error(payload.error || "操作失败");
+  if (!response.ok) {
+    if (response.status === 401) {
+      state.auth = { authenticated: false, mustChange: false };
+      updateAuthUI();
+      render();
+    }
+    throw new Error(payload.error || "操作失败");
+  }
   updateState(payload);
   return payload;
 }
@@ -171,6 +248,9 @@ function updateState(payload) {
   state.version = payload.version;
   state.items = payload.items || [];
   state.logs = payload.logs || [];
+  state.boxes = payload.boxes || [];
+  state.auth = payload.auth || { authenticated: false, mustChange: false };
+  updateAuthUI();
   render();
   syncStatus.textContent = `已同步，版本 ${state.version}`;
 }
@@ -179,7 +259,9 @@ async function refresh(silent = false) {
   try {
     const response = await fetch("/api/state", { cache: "no-store" });
     const payload = await response.json();
-    if (payload.version !== state.version) updateState(payload);
+    const authChanged = Boolean(payload.auth?.authenticated) !== isAdmin()
+      || Boolean(payload.auth?.mustChange) !== Boolean(state.auth.mustChange);
+    if (payload.version !== state.version || authChanged) updateState(payload);
     if (!silent) syncStatus.textContent = `已同步，版本 ${payload.version}`;
   } catch {
     syncStatus.textContent = "同步失败，稍后会自动重试";
@@ -219,6 +301,135 @@ function currentLogs() {
   return state.logs.filter(log => (log.category || "office") === state.mode);
 }
 
+function boxesForCabinet(cabinet) {
+  return state.boxes.filter(box => box.cabinet === cabinet);
+}
+
+function createBoxCard(box) {
+  const card = document.createElement("article");
+  card.className = "storage-box";
+
+  const documentLink = document.createElement("a");
+  documentLink.className = "box-document";
+  documentLink.href = box.documentUrl;
+  documentLink.target = "_blank";
+  documentLink.rel = "noopener noreferrer";
+  documentLink.title = `打开“${box.label}”的物资清单文档`;
+
+  const title = document.createElement("strong");
+  title.textContent = box.label;
+  const position = document.createElement("span");
+  position.textContent = `位置：${box.position}`;
+  const department = document.createElement("span");
+  department.textContent = `部组：${box.department}`;
+  const activity = document.createElement("span");
+  activity.textContent = `活动：${box.activity || "日常物资"}`;
+  const documentHint = document.createElement("small");
+  documentHint.textContent = "打开物资清单 ↗";
+  documentLink.append(title, position, department, activity, documentHint);
+
+  const actions = document.createElement("div");
+  actions.className = "box-actions";
+  const editButton = document.createElement("button");
+  editButton.type = "button";
+  editButton.className = "secondary";
+  editButton.textContent = "编辑";
+  editButton.addEventListener("click", () => openBoxDialog(box));
+  const removeButton = document.createElement("button");
+  removeButton.type = "button";
+  removeButton.className = "danger";
+  removeButton.textContent = "移除";
+  removeButton.addEventListener("click", () => removeBox(box));
+  actions.append(editButton, removeButton);
+
+  card.appendChild(documentLink);
+  if (isAdmin()) card.appendChild(actions);
+  return card;
+}
+
+function renderStorageVisualization() {
+  if (state.mode !== "office") return;
+
+  document.querySelectorAll("[data-box-count]").forEach(element => {
+    const count = boxesForCabinet(element.dataset.boxCount).length;
+    element.textContent = `${count} 箱`;
+  });
+  document.querySelectorAll("[data-cabinet-link]").forEach(link => {
+    link.classList.toggle("active", link.dataset.cabinetLink === selectedCabinet);
+  });
+  document.querySelector("#boxCount").textContent = `${state.boxes.length} 个储物箱`;
+  document.querySelector("#selectedCabinetName").textContent = selectedCabinet;
+  document.querySelector("#addBoxButton").hidden = !isAdmin();
+
+  const config = locationConfig.find(entry => entry.name === selectedCabinet) || locationConfig[0];
+  const shelves = shelfOptions(config);
+  shelfLayers.innerHTML = "";
+
+  for (const shelf of shelves) {
+    const layer = document.createElement("section");
+    layer.className = "shelf-layer";
+
+    const heading = document.createElement("div");
+    heading.className = "layer-heading";
+    const title = document.createElement("h4");
+    title.textContent = shelf;
+    const addButton = document.createElement("button");
+    addButton.type = "button";
+    addButton.className = "layer-add-button";
+    addButton.textContent = "添加";
+    addButton.addEventListener("click", () => openBoxDialog(null, shelf));
+    heading.appendChild(title);
+    if (isAdmin()) heading.appendChild(addButton);
+
+    const boxList = document.createElement("div");
+    boxList.className = "layer-boxes";
+    const boxes = boxesForCabinet(selectedCabinet).filter(box => box.shelf === shelf);
+    if (!boxes.length) {
+      const empty = document.createElement("p");
+      empty.className = "layer-empty";
+      empty.textContent = "这一层还没有登记储物箱";
+      boxList.appendChild(empty);
+    } else {
+      boxes.forEach(box => boxList.appendChild(createBoxCard(box)));
+    }
+
+    layer.append(heading, boxList);
+    shelfLayers.appendChild(layer);
+  }
+}
+
+function openBoxDialog(box = null, shelf = "") {
+  if (!requireAdmin()) return;
+  boxForm.reset();
+  boxForm.id.value = box?.id || "";
+  document.querySelector("#boxDialogTitle").textContent = box ? "编辑储物箱" : "添加储物箱";
+  populateLocationControls(
+    boxForm,
+    box?.cabinet || selectedCabinet,
+    box?.shelf || shelf
+  );
+  boxForm.label.value = box?.label || "";
+  boxForm.position.value = box?.position || "";
+  boxForm.department.value = box?.department || "";
+  boxForm.activity.value = box?.activity || "";
+  boxForm.documentUrl.value = box?.documentUrl || "";
+  boxDialog.showModal();
+}
+
+async function removeBox(box) {
+  if (!requireActor()) return;
+  if (!confirm(`确定移除“${box.label}”吗？`)) return;
+  try {
+    await api(`/api/boxes/${box.id}`, {
+      method: "DELETE",
+      body: JSON.stringify({ actor: actor() })
+    });
+    showToast("储物箱已移除");
+  } catch (error) {
+    showToast(error.message);
+  }
+}
+
 function applyMode(mode) {
   state.mode = mode;
   const copy = modeCopy[mode];
@@ -234,6 +445,8 @@ function applyMode(mode) {
   document.querySelector("#placeColumn").textContent = copy.place;
   document.querySelector("#heroMascot").src = copy.mascot;
   searchInput.placeholder = copy.search;
+  officeGuidePanel.hidden = mode !== "office";
+  storageVisualizer.hidden = mode !== "office";
 
   setFormMode(itemForm, mode);
   render();
@@ -262,6 +475,7 @@ function setFormMode(form, mode) {
 
 function render() {
   if (!state.mode) return;
+  renderStorageVisualization();
   const items = currentItems();
   itemsBody.innerHTML = "";
   emptyState.style.display = items.length ? "none" : "block";
@@ -298,10 +512,14 @@ function render() {
       cell.dataset.label = labels[index];
     });
     row.querySelector("[data-action='detail']").addEventListener("click", () => openDetail(item));
-    row.querySelector("[data-action='take']").addEventListener("click", () => changeQuantity(item, "take"));
-    row.querySelector("[data-action='return']").addEventListener("click", () => changeQuantity(item, "return"));
-    row.querySelector("[data-action='edit']").addEventListener("click", () => openEdit(item));
-    row.querySelector("[data-action='delete']").addEventListener("click", () => deleteItem(item));
+    if (isAdmin()) {
+      row.querySelector("[data-action='take']").addEventListener("click", () => changeQuantity(item, "take"));
+      row.querySelector("[data-action='return']").addEventListener("click", () => changeQuantity(item, "return"));
+      row.querySelector("[data-action='edit']").addEventListener("click", () => openEdit(item));
+      row.querySelector("[data-action='delete']").addEventListener("click", () => deleteItem(item));
+    } else {
+      row.querySelectorAll("[data-action]:not([data-action='detail'])").forEach(button => button.remove());
+    }
     itemsBody.appendChild(row);
   }
 
@@ -389,7 +607,78 @@ quantityForm.addEventListener("submit", async event => {
   }
 });
 
+loginForm.addEventListener("submit", async event => {
+  event.preventDefault();
+  const password = loginForm.password.value;
+  try {
+    const payload = await api("/api/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ password })
+    });
+    loginDialog.close();
+    loginForm.reset();
+    showToast("已进入管理员模式");
+    if (payload.auth?.mustChange) openPasswordDialog(password);
+  } catch (error) {
+    showToast(error.message);
+    loginForm.password.select();
+  }
+});
+
+passwordForm.addEventListener("submit", async event => {
+  event.preventDefault();
+  const data = formData(passwordForm);
+  if (data.newPassword !== data.confirmPassword) {
+    showToast("两次输入的新密码不一致");
+    passwordForm.confirmPassword.focus();
+    return;
+  }
+  try {
+    await api("/api/auth/password", {
+      method: "POST",
+      body: JSON.stringify({
+        currentPassword: data.currentPassword,
+        newPassword: data.newPassword
+      })
+    });
+    passwordDialog.close();
+    passwordForm.reset();
+    showToast("管理员密码已更新");
+  } catch (error) {
+    showToast(error.message);
+  }
+});
+
+boxForm.addEventListener("submit", async event => {
+  event.preventDefault();
+  if (!requireActor()) return;
+  const data = formData(boxForm);
+  const body = {
+    label: data.label,
+    cabinet: data.cabinet,
+    shelf: data.cabinet === "地面" ? "无层数" : data.shelf,
+    position: data.position,
+    department: data.department,
+    activity: data.activity,
+    documentUrl: data.documentUrl,
+    actor: actor()
+  };
+  try {
+    await api(data.id ? `/api/boxes/${data.id}` : "/api/boxes", {
+      method: data.id ? "PUT" : "POST",
+      body: JSON.stringify(body)
+    });
+    selectedCabinet = body.cabinet;
+    boxDialog.close();
+    renderStorageVisualization();
+    showToast(data.id ? "储物箱已更新" : "储物箱已添加");
+  } catch (error) {
+    showToast(error.message);
+  }
+});
+
 function openEdit(item) {
+  if (!requireAdmin()) return;
   const category = item.category || "office";
   editForm.id.value = item.id;
   editForm.category.value = category;
@@ -473,10 +762,38 @@ editForm.addEventListener("submit", async event => {
 function init() {
   populateLocationControls(itemForm);
   populateLocationControls(editForm);
+  populateLocationControls(boxForm);
   document.querySelector("[data-close]").addEventListener("click", () => editDialog.close());
   document.querySelector("[data-detail-close]").addEventListener("click", () => detailDialog.close());
   document.querySelectorAll("[data-quantity-close]").forEach(button => {
     button.addEventListener("click", () => quantityDialog.close());
+  });
+  document.querySelectorAll("[data-box-close]").forEach(button => {
+    button.addEventListener("click", () => boxDialog.close());
+  });
+  document.querySelectorAll("[data-login-close]").forEach(button => {
+    button.addEventListener("click", () => loginDialog.close());
+  });
+  document.querySelectorAll("[data-password-close]").forEach(button => {
+    button.addEventListener("click", () => passwordDialog.close());
+  });
+  document.querySelectorAll("[data-cabinet-link]").forEach(link => {
+    link.addEventListener("click", () => {
+      selectedCabinet = link.dataset.cabinetLink;
+      renderStorageVisualization();
+    });
+  });
+  document.querySelector("#addBoxButton").addEventListener("click", () => openBoxDialog());
+  loginButton.addEventListener("click", openLoginDialog);
+  document.querySelector("[data-open-login]").addEventListener("click", openLoginDialog);
+  changePasswordButton.addEventListener("click", () => openPasswordDialog());
+  logoutButton.addEventListener("click", async () => {
+    try {
+      await api("/api/auth/logout", { method: "POST", body: "{}" });
+      showToast("已退出管理员模式");
+    } catch (error) {
+      showToast(error.message);
+    }
   });
   document.querySelector("#backToPortal").addEventListener("click", () => {
     state.mode = "";
@@ -487,6 +804,7 @@ function init() {
     button.addEventListener("click", () => applyMode(button.dataset.enterMode));
   });
   searchInput.addEventListener("input", render);
+  updateAuthUI();
   if (location.protocol === "file:") {
     document.querySelector("#fileWarning").hidden = false;
     syncStatus.textContent = "当前仅为静态预览";

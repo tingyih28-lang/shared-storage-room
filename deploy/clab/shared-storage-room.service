@@ -1,0 +1,24 @@
+[Unit]
+Description=PKU Love Club Shared Storage Room
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=storageroom
+Group=storageroom
+WorkingDirectory=/opt/shared-storage-room
+Environment=PORT=80
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=/usr/bin/python3 /opt/shared-storage-room/server.py
+Restart=on-failure
+RestartSec=3
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+NoNewPrivileges=true
+ProtectHome=true
+ProtectSystem=full
+ReadWritePaths=/opt/shared-storage-room/data
+
+[Install]
+WantedBy=multi-user.target
