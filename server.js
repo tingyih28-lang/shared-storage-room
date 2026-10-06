@@ -454,7 +454,8 @@ function serveStatic(req, res) {
       return;
     }
     res.writeHead(200, {
-      "Content-Type": mimeTypes[path.extname(filePath)] || "application/octet-stream"
+      "Content-Type": mimeTypes[path.extname(filePath)] || "application/octet-stream",
+      "Cache-Control": "no-cache"
     });
     res.end(content);
   });

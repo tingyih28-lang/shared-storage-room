@@ -229,17 +229,25 @@ async function api(url, options = {}) {
   const response = await fetch(url, {
     headers: { "Content-Type": "application/json" },
     credentials: "same-origin",
+    cache: "no-store",
     ...options
   });
-  const payload = await response.json();
+  const responseText = await response.text();
+  let payload;
+  try {
+    payload = responseText ? JSON.parse(responseText) : null;
+  } catch {
+    throw new Error("服务器返回内容不完整，请刷新页面后重试");
+  }
   if (!response.ok) {
     if (response.status === 401) {
       state.auth = { authenticated: false, mustChange: false };
       updateAuthUI();
       render();
     }
-    throw new Error(payload.error || "操作失败");
+    throw new Error(payload?.error || `服务器暂时无法处理请求（${response.status}）`);
   }
+  if (!payload) throw new Error("服务器没有返回内容，请刷新页面后重试");
   updateState(payload);
   return payload;
 }
@@ -258,7 +266,9 @@ function updateState(payload) {
 async function refresh(silent = false) {
   try {
     const response = await fetch("/api/state", { cache: "no-store" });
-    const payload = await response.json();
+    const responseText = await response.text();
+    if (!responseText) throw new Error("服务器没有返回内容");
+    const payload = JSON.parse(responseText);
     const authChanged = Boolean(payload.auth?.authenticated) !== isAdmin()
       || Boolean(payload.auth?.mustChange) !== Boolean(state.auth.mustChange);
     if (payload.version !== state.version || authChanged) updateState(payload);

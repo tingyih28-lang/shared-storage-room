@@ -287,8 +287,15 @@ def payload(authenticated=False):
 
 
 class Handler(SimpleHTTPRequestHandler):
+    protocol_version = "HTTP/1.1"
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(PUBLIC_DIR), **kwargs)
+
+    def end_headers(self):
+        if not urlparse(self.path).path.startswith("/api/"):
+            self.send_header("Cache-Control", "no-cache")
+        super().end_headers()
 
     def send_json(self, status, body, headers=None):
         raw = json.dumps(body, ensure_ascii=False).encode("utf-8")
