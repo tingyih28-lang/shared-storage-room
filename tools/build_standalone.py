@@ -103,8 +103,7 @@ def build_local_api(seed: dict) -> str:
       version: data.version || 1,
       items: data.items,
       logs: data.logs,
-      boxes: data.boxes,
-      auth: {{ authenticated: true, mustChange: false }}
+      boxes: data.boxes
     }});
   }}
 
@@ -174,10 +173,7 @@ def build_local_api(seed: dict) -> str:
     if (options.body) body = JSON.parse(options.body);
 
     try {{
-      if (method === "GET" && ["/api/state", "/api/auth/status"].includes(path)) {{
-        return jsonResponse(200, payload());
-      }}
-      if (method === "POST" && path.startsWith("/api/auth/")) {{
+      if (method === "GET" && path === "/api/state") {{
         return jsonResponse(200, payload());
       }}
 

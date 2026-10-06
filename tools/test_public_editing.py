@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import http.cookiejar
 import json
 import os
 import socket
@@ -14,8 +13,6 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-INITIAL_PASSWORD = "Temp-Admin-2026!"
-NEW_PASSWORD = "New-Admin-Password-2026!"
 
 
 def free_port():
@@ -28,13 +25,7 @@ def main():
     port = free_port()
     with tempfile.TemporaryDirectory() as temp_dir:
         env = os.environ.copy()
-        env.update(
-            {
-                "PORT": str(port),
-                "STORAGE_DATA_DIR": temp_dir,
-                "INITIAL_ADMIN_PASSWORD": INITIAL_PASSWORD,
-            }
-        )
+        env.update({"PORT": str(port), "STORAGE_DATA_DIR": temp_dir})
         process = subprocess.Popen(
             [sys.executable, str(ROOT / "server.py")],
             cwd=ROOT,
@@ -44,8 +35,6 @@ def main():
             text=True,
         )
         try:
-            jar = http.cookiejar.CookieJar()
-            opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
             base = f"http://127.0.0.1:{port}"
 
             def request(path, method="GET", body=None, expected=200):
@@ -57,7 +46,7 @@ def main():
                     headers={"Content-Type": "application/json"},
                 )
                 try:
-                    with opener.open(req, timeout=3) as response:
+                    with urllib.request.urlopen(req, timeout=3) as response:
                         status = response.status
                         payload = json.loads(response.read().decode("utf-8"))
                 except urllib.error.HTTPError as error:
@@ -76,43 +65,64 @@ def main():
                         raise
                     time.sleep(0.1)
 
-            assert state["auth"] == {"authenticated": False, "mustChange": False}
+            assert state["items"] == []
             request(
                 "/api/items",
                 "POST",
-                {"name": "未授权测试", "category": "office", "location": "地面"},
-                401,
+                {"name": "缺少操作人", "category": "office", "location": "地面"},
+                400,
             )
-            request("/api/auth/login", "POST", {"password": "wrong-password"}, 401)
-            logged_in = request("/api/auth/login", "POST", {"password": INITIAL_PASSWORD})
-            assert logged_in["auth"] == {"authenticated": True, "mustChange": True}
 
             created = request(
                 "/api/items",
                 "POST",
                 {
-                    "name": "权限测试物品",
+                    "name": "公开协作测试物品",
                     "category": "office",
                     "location": "地面",
-                    "quantity": 1,
+                    "quantity": 2,
                     "unit": "件",
                     "actor": "自动测试",
                 },
             )
-            assert len(created["items"]) == 1
+            item_id = created["items"][0]["id"]
 
-            changed = request(
-                "/api/auth/password",
-                "POST",
-                {"currentPassword": INITIAL_PASSWORD, "newPassword": NEW_PASSWORD},
+            updated = request(
+                f"/api/items/{item_id}",
+                "PUT",
+                {
+                    "name": "公开协作测试物品（已修改）",
+                    "category": "office",
+                    "location": "银色柜子1 · 第1层",
+                    "quantity": 2,
+                    "unit": "件",
+                    "actor": "自动测试",
+                },
             )
-            assert changed["auth"] == {"authenticated": True, "mustChange": False}
-            request("/api/auth/logout", "POST", {})
-            request("/api/auth/login", "POST", {"password": INITIAL_PASSWORD}, 401)
-            relogged = request("/api/auth/login", "POST", {"password": NEW_PASSWORD})
-            assert relogged["auth"]["authenticated"] is True
-            assert len(relogged["items"]) == 1
-            print("PASS auth, permissions, password change, and session flow")
+            assert updated["items"][0]["location"] == "银色柜子1 · 第1层"
+
+            taken = request(
+                f"/api/items/{item_id}/take",
+                "POST",
+                {"quantity": 1, "actor": "自动测试"},
+            )
+            assert taken["items"][0]["quantity"] == 1
+
+            returned = request(
+                f"/api/items/{item_id}/return",
+                "POST",
+                {"quantity": 1, "actor": "自动测试"},
+            )
+            assert returned["items"][0]["quantity"] == 2
+
+            deleted = request(
+                f"/api/items/{item_id}",
+                "DELETE",
+                {"actor": "自动测试", "note": "测试完成"},
+            )
+            assert deleted["items"] == []
+            assert len(deleted["logs"]) == 5
+            print("PASS public editing and required actor flow")
         finally:
             process.terminate()
             try:

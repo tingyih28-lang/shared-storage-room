@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>爱心社物资管理</title>
-    <link rel="stylesheet" href="./styles.css?v=20261006-1">
+    <link rel="stylesheet" href="./styles.css?v=20261006-2">
   </head>
   <body>
     <section id="portal" class="portal" aria-label="选择管理系统">
@@ -43,23 +43,12 @@
           </div>
         </div>
         <div class="topbar-tools">
-          <label id="actorField" class="actor" hidden>
+          <label id="actorField" class="actor">
             <span>操作人 <strong>* 必填</strong></span>
             <input id="actorInput" autocomplete="name" placeholder="请填写姓名" required>
           </label>
-          <div class="auth-controls">
-            <span id="accessBadge" class="access-badge">只读访问</span>
-            <button id="loginButton" class="secondary-button" type="button">管理员登录</button>
-            <button id="changePasswordButton" class="secondary-button" type="button" hidden>修改密码</button>
-            <button id="logoutButton" class="ghost-button" type="button" hidden>退出</button>
-          </div>
         </div>
       </header>
-
-      <aside id="viewerNotice" class="viewer-notice">
-        当前为只读浏览；管理员登录后可以登记、领取、归还、编辑和删除物资。
-        <button type="button" data-open-login>管理员登录</button>
-      </aside>
 
       <main class="layout">
         <section class="welcome-panel">
@@ -123,7 +112,7 @@
           </div>
         </section>
 
-        <section id="formPanel" class="panel form-panel" aria-label="新增物品" hidden>
+        <section id="formPanel" class="panel form-panel" aria-label="新增物品">
           <h2 id="formTitle">登记物品</h2>
           <form id="itemForm">
             <label class="field">
@@ -306,45 +295,7 @@
       </form>
     </dialog>
 
-    <dialog id="loginDialog" class="auth-dialog">
-      <form id="loginForm">
-        <div class="dialog-head">
-          <div>
-            <span class="eyebrow">管理员账户</span>
-            <h2>登录后管理物资</h2>
-          </div>
-          <button type="button" class="ghost-button" data-login-close>关闭</button>
-        </div>
-        <p class="dialog-note">账号固定为 admin，请输入管理员密码。</p>
-        <label>管理员密码<input name="password" type="password" autocomplete="current-password" required></label>
-        <div class="dialog-actions">
-          <button type="button" class="ghost-button" data-login-close>取消</button>
-          <button type="submit">登录</button>
-        </div>
-      </form>
-    </dialog>
-
-    <dialog id="passwordDialog" class="auth-dialog">
-      <form id="passwordForm">
-        <div class="dialog-head">
-          <div>
-            <span class="eyebrow">管理员安全</span>
-            <h2>修改管理员密码</h2>
-          </div>
-          <button type="button" class="ghost-button" data-password-close>关闭</button>
-        </div>
-        <p class="dialog-note">新密码至少 10 个字符，建议同时包含字母、数字和符号。</p>
-        <label>当前密码<input name="currentPassword" type="password" autocomplete="current-password" required></label>
-        <label>新密码<input name="newPassword" type="password" autocomplete="new-password" minlength="10" maxlength="128" required></label>
-        <label>再次输入新密码<input name="confirmPassword" type="password" autocomplete="new-password" minlength="10" maxlength="128" required></label>
-        <div class="dialog-actions">
-          <button type="button" class="ghost-button" data-password-close>取消</button>
-          <button type="submit">保存新密码</button>
-        </div>
-      </form>
-    </dialog>
-
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
-    <script src="./app.js?v=20261006-1"></script>
+    <script src="./app.js?v=20261006-2"></script>
   </body>
 </html>
