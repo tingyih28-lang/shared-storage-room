@@ -55,7 +55,6 @@ const quantityDialog = document.querySelector("#quantityDialog");
 const quantityForm = document.querySelector("#quantityForm");
 const boxDialog = document.querySelector("#boxDialog");
 const boxForm = document.querySelector("#boxForm");
-const officeGuidePanel = document.querySelector("#officeGuidePanel");
 const storageVisualizer = document.querySelector("#storageVisualizer");
 const shelfLayers = document.querySelector("#shelfLayers");
 const itemsBody = document.querySelector("#itemsBody");
@@ -298,7 +297,8 @@ function renderStorageVisualization() {
     link.classList.toggle("active", link.dataset.cabinetLink === selectedCabinet);
   });
   document.querySelector("#boxCount").textContent = `${state.boxes.length} 个储物箱`;
-  document.querySelector("#selectedCabinetName").textContent = selectedCabinet;
+  const visualNames = { "木柜（左）": "方格木制架", "木柜（右）": "横格木制架" };
+  document.querySelector("#selectedCabinetName").textContent = visualNames[selectedCabinet] || selectedCabinet;
   document.querySelector("#addBoxButton").hidden = false;
 
   const config = locationConfig.find(entry => entry.name === selectedCabinet) || locationConfig[0];
@@ -384,7 +384,6 @@ function applyMode(mode) {
   document.querySelector("#placeColumn").textContent = copy.place;
   document.querySelector("#heroMascot").src = copy.mascot;
   searchInput.placeholder = copy.search;
-  officeGuidePanel.hidden = mode !== "office";
   storageVisualizer.hidden = mode !== "office";
 
   setFormMode(itemForm, mode);
