@@ -133,6 +133,11 @@ h4 {
   background: var(--soft);
 }
 
+.portal-card img.portal-mascot-contain {
+  object-fit: contain;
+  background: #fff;
+}
+
 .portal-card span {
   font-size: 22px;
   font-weight: 850;
@@ -282,11 +287,8 @@ h4 {
 }
 
 .office-guide-panel {
-  display: grid;
-  grid-template-columns: minmax(280px, 0.8fr) minmax(460px, 1.2fr);
-  gap: 24px;
-  align-items: center;
-  padding: 22px;
+  display: block;
+  padding: 18px;
 }
 
 .guide-copy h2 {
@@ -333,8 +335,9 @@ h4 {
 .guide-figure img {
   display: block;
   width: 100%;
-  aspect-ratio: 16 / 9;
+  max-height: min(68vh, 760px);
   object-fit: contain;
+  object-position: center;
 }
 
 .guide-figure figcaption {
@@ -987,10 +990,6 @@ dialog form,
     padding: 12px;
   }
 
-  .office-guide-panel {
-    grid-template-columns: 1fr;
-  }
-
   .split,
   .location-grid,
   .detail-meta,
@@ -1049,15 +1048,6 @@ dialog form,
 
   .section-head {
     padding: 14px;
-  }
-
-  .guide-copy h2 {
-    font-size: 21px;
-  }
-
-  .guide-rules div {
-    grid-template-columns: 1fr;
-    gap: 3px;
   }
 
   .visualizer-head,
