@@ -49,17 +49,22 @@ function writeData(data) {
   fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), "utf8");
 }
 
-function readBody(req) {
+function readBody(req, maxBytes = 3_000_000) {
   return new Promise((resolve, reject) => {
     let body = "";
+    let rejected = false;
     req.on("data", chunk => {
+      if (rejected) return;
       body += chunk;
-      if (body.length > 1_000_000) {
-        reject(new Error("请求内容太大"));
-        req.destroy();
+      if (Buffer.byteLength(body, "utf8") > maxBytes) {
+        rejected = true;
+        const error = new Error("图片或表单内容太大，请换一张较小的图片");
+        error.status = 400;
+        reject(error);
       }
     });
     req.on("end", () => {
+      if (rejected) return;
       try {
         resolve(body ? JSON.parse(body) : {});
       } catch {
@@ -190,6 +195,63 @@ async function handleApi(req, res) {
     if (req.method === "GET" && url.pathname === "/api/state") {
       return sendJson(res, 200, listPayload());
     }
+    if (req.method === "GET" && url.pathname === "/api/found-items") {
+      const data = readData();
+      const items = data.foundItems || [];
+      const visibleItems = url.searchParams.get("summary") === "1"
+        ? items.map(({ imageData, ...item }) => item)
+        : items;
+      return sendJson(res, 200, { version: data.version || 1, items: visibleItems });
+    }
+    const foundItemGetMatch = url.pathname.match(/^\/api\/found-items\/([^/]+)$/);
+    if (req.method === "GET" && foundItemGetMatch) {
+      const data = readData();
+      const item = (data.foundItems || []).find(entry => entry.id === foundItemGetMatch[1]);
+      if (!item) return sendJson(res, 404, { error: "找不到这件物资" });
+      return sendJson(res, 200, { item });
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/found-items") {
+      const body = await readBody(req);
+      const name = cleanText(body.name, 100);
+      const features = cleanText(body.features, 1000);
+      const uses = cleanText(body.uses, 500);
+      const location = cleanText(body.location, 160);
+      const imageData = String(body.imageData || "");
+      if (!name) return sendJson(res, 400, { error: "请填写物品名称" });
+      if (!features) return sendJson(res, 400, { error: "请填写物品特征" });
+      if (!location) return sendJson(res, 400, { error: "请填写物品位置" });
+      if (!/^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(imageData)) {
+        return sendJson(res, 400, { error: "请选择 JPG、PNG 或 WebP 图片" });
+      }
+      if (Buffer.byteLength(imageData, "utf8") > 2_100_000) {
+        return sendJson(res, 400, { error: "图片太大，请重新选择或压缩后上传" });
+      }
+      const timestamp = now();
+      const item = {
+        id: crypto.randomUUID(), name, features, uses, location, imageData,
+        department: "", activity: "", uploadedAt: timestamp, updatedAt: timestamp
+      };
+      const data = readData();
+      data.foundItems ||= [];
+      data.foundItems.unshift(item);
+      writeData(data);
+      return sendJson(res, 200, { id: item.id, version: data.version });
+    }
+
+    const foundItemMatch = url.pathname.match(/^\/api\/found-items\/([^/]+)$/);
+    if (req.method === "PUT" && foundItemMatch) {
+      const body = await readBody(req);
+      const data = readData();
+      const items = data.foundItems || [];
+      const item = items.find(entry => entry.id === foundItemMatch[1]);
+      if (!item) return sendJson(res, 404, { error: "找不到这件物资" });
+      item.department = cleanText(body.department, 100);
+      item.activity = cleanText(body.activity, 120);
+      item.updatedAt = now();
+      writeData(data);
+      return sendJson(res, 200, { id: item.id, version: data.version });
+    }
 
     if (req.method === "POST" && url.pathname === "/api/boxes") {
       const body = await readBody(req);
@@ -303,7 +365,10 @@ async function handleApi(req, res) {
 function serveStatic(req, res) {
   const rawPath = decodeURIComponent(req.url.split("?")[0]);
   const safePath = rawPath === "/" ? "/index.html" : rawPath;
-  const filePath = path.normalize(path.join(PUBLIC_DIR, safePath));
+  let filePath = path.normalize(path.join(PUBLIC_DIR, safePath));
+  if (fs.existsSync(filePath) && fs.statSync(filePath).isDirectory()) {
+    filePath = path.join(filePath, "index.html");
+  }
   if (!filePath.startsWith(PUBLIC_DIR)) {
     res.writeHead(403);
     res.end("Forbidden");

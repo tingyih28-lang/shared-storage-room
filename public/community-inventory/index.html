@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#fff8f4">
+    <title>物资待认领 · 北京大学学生爱心社</title>
+    <link rel="stylesheet" href="./styles.css?v=20261009-1">
+    <script src="./app.js?v=20261009-1" defer></script>
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="../" aria-label="返回爱心社储物间首页">
+        <img src="../assets/love-whale.jpg" alt="北京大学学生爱心社标识">
+        <span>北京大学学生爱心社</span>
+      </a>
+      <a class="back-link" href="../">返回物资小屋</a>
+    </header>
+
+    <main>
+      <section class="intro" aria-labelledby="pageTitle">
+        <div class="intro-copy">
+          <span class="eyebrow">一起认领，让物资找到来处</span>
+          <h1 id="pageTitle">物资待认领</h1>
+          <p>先拍下还不确定归属的物资，大家再一起补上部组和活动信息。</p>
+        </div>
+        <img src="../assets/xiaoai-peek.png" alt="小爱同学陪你整理物资">
+        <div class="intro-rule" aria-hidden="true"></div>
+      </section>
+
+      <nav class="tabs" aria-label="物资管理功能">
+        <button class="tab is-active" type="button" id="uploadTab" aria-selected="true" aria-controls="uploadPanel">上传物资</button>
+        <button class="tab" type="button" id="identifyTab" aria-selected="false" aria-controls="identifyPanel">部组与活动识别 <span id="unclaimedCount" class="tab-count">0</span></button>
+        <span id="syncStatus" class="sync-status" role="status">正在连接...</span>
+      </nav>
+
+      <section id="uploadPanel" class="panel" aria-labelledby="uploadHeading">
+        <div class="section-heading">
+          <div>
+            <span class="eyebrow">01 / 留下线索</span>
+            <h2 id="uploadHeading">上传一件待认领物资</h2>
+          </div>
+          <p>上传时间会自动记录，其他同学可以继续补充归属。</p>
+        </div>
+
+        <form id="uploadForm" class="upload-form">
+          <div class="photo-field">
+            <label class="photo-drop" for="photoInput">
+              <img id="photoPreview" alt="待上传物资图片预览" hidden>
+              <span id="photoPlaceholder" class="photo-placeholder">
+                <span class="photo-mark" aria-hidden="true">＋</span>
+                <strong>选择物品图片</strong>
+                <small>JPG、PNG 或 WebP，上传前会自动压缩</small>
+              </span>
+            </label>
+            <input id="photoInput" name="photo" type="file" accept="image/jpeg,image/png,image/webp" required>
+          </div>
+
+          <div class="fields">
+            <label class="field">
+              <span>物品名字 <b>*</b></span>
+              <input name="name" maxlength="100" placeholder="例如：蓝色折叠展架" required>
+            </label>
+            <label class="field">
+              <span>所在位置 <b>*</b></span>
+              <input name="location" maxlength="160" placeholder="例如：社办门口右侧纸箱旁" required>
+            </label>
+            <label class="field">
+              <span>物品特征 <b>*</b></span>
+              <textarea name="features" maxlength="1000" rows="3" placeholder="颜色、材质、尺寸、上面的标记等" required></textarea>
+            </label>
+            <label class="field">
+              <span>可能用途</span>
+              <textarea name="uses" maxlength="500" rows="2" placeholder="你觉得它可能用于什么活动或场景"></textarea>
+            </label>
+            <button id="uploadButton" class="primary-button" type="submit">发布物资信息</button>
+          </div>
+        </form>
+
+        <div class="list-heading">
+          <h2>最近上传</h2>
+          <span id="totalCount" class="muted-count">0 件</span>
+        </div>
+        <div id="recentItems" class="item-grid" aria-live="polite"></div>
+      </section>
+
+      <section id="identifyPanel" class="panel" aria-labelledby="identifyHeading" hidden>
+        <div class="section-heading">
+          <div>
+            <span class="eyebrow">02 / 补上归属</span>
+            <h2 id="identifyHeading">一起辨认这些物资</h2>
+          </div>
+          <p>选择或填写所属部组、活动名称，保存后大家都能搜索到。</p>
+        </div>
+        <label class="search-box">
+          <span aria-hidden="true">⌕</span>
+          <input id="searchInput" type="search" placeholder="搜索部组或活动名称" autocomplete="off">
+          <button id="clearSearch" type="button" aria-label="清除搜索" title="清除搜索">×</button>
+        </label>
+        <div class="filter-row">
+          <label>部组<select id="departmentFilter"><option value="">全部部组</option></select></label>
+          <label>活动<select id="activityFilter"><option value="">全部活动</option></select></label>
+          <button id="showUnclaimed" class="filter-toggle" type="button" aria-pressed="false">只看待补充归属 <span id="filterUnclaimedCount">0</span></button>
+        </div>
+        <div id="searchSummary" class="search-summary"></div>
+        <div id="identifiedItems" class="item-grid" aria-live="polite"></div>
+      </section>
+
+      <footer class="page-footer">
+        <span>北京大学学生爱心社</span>
+        <span>信息与图片由共同编辑者填写，请确认位置和用途后再取用。</span>
+      </footer>
+    </main>
+
+    <template id="itemTemplate">
+      <article class="item-card">
+        <img class="item-image" alt="物资照片" loading="lazy">
+        <div class="item-body">
+          <div class="item-title-row">
+            <h3 class="item-name"></h3>
+            <span class="item-status"></span>
+          </div>
+          <p class="item-features"></p>
+          <dl class="item-meta">
+            <div><dt>位置</dt><dd class="item-location"></dd></div>
+            <div><dt>上传时间</dt><dd class="item-time"></dd></div>
+            <div class="item-uses-row"><dt>可能用途</dt><dd class="item-uses"></dd></div>
+          </dl>
+          <form class="claim-form">
+            <label>所属部组<input class="department-input" maxlength="100" list="departments" placeholder="例如：宣传部"></label>
+            <label>活动名称<input class="activity-input" maxlength="120" list="activities" placeholder="例如：迎新活动"></label>
+            <button class="save-claim" type="submit">保存归属</button>
+          </form>
+        </div>
+      </article>
+    </template>
+    <datalist id="departments"></datalist>
+    <datalist id="activities"></datalist>
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  </body>
+</html>

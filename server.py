@@ -1,9 +1,11 @@
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
+import base64
 import json
 import os
 import socket
+import threading
 import uuid
 from datetime import datetime, timezone
 
@@ -12,6 +14,7 @@ PUBLIC_DIR = ROOT / "public"
 DATA_DIR = Path(os.environ.get("STORAGE_DATA_DIR", ROOT / "data"))
 DATA_FILE = DATA_DIR / "storage.json"
 PORT = int(os.environ.get("PORT", "4173"))
+DATA_LOCK = threading.RLock()
 
 STORAGE_SHELVES = {
     "黑色柜子1": ["第1层", "第2层", "第3层"],
@@ -43,15 +46,24 @@ def ensure_data_file():
         )
 
 
+def serialized_mutation(method):
+    def wrapped(self, *args, **kwargs):
+        with DATA_LOCK:
+            return method(self, *args, **kwargs)
+    return wrapped
+
+
 def read_data():
     ensure_data_file()
-    return json.loads(DATA_FILE.read_text("utf-8"))
+    with DATA_LOCK:
+        return json.loads(DATA_FILE.read_text("utf-8"))
 
 
 def write_data(data):
     ensure_data_file()
-    data["version"] = int(data.get("version", 0)) + 1
-    DATA_FILE.write_text(json.dumps(data, ensure_ascii=False, indent=2), "utf-8")
+    with DATA_LOCK:
+        data["version"] = int(data.get("version", 0)) + 1
+        DATA_FILE.write_text(json.dumps(data, ensure_ascii=False, indent=2), "utf-8")
 
 
 def clean_text(value, max_len=120):
@@ -178,22 +190,83 @@ class Handler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(raw)
 
-    def read_body(self):
+    def read_body(self, max_bytes=3_000_000):
         length = int(self.headers.get("Content-Length", "0"))
         if length <= 0:
             return {}
+        if length > max_bytes:
+            raise ValueError("图片或表单内容太大，请换一张较小的图片")
         return json.loads(self.rfile.read(length).decode("utf-8"))
 
     def do_GET(self):
-        path = urlparse(self.path).path
+        parsed_path = urlparse(self.path)
+        path = parsed_path.path
         if path == "/api/state":
             self.send_json(200, payload())
             return
+        if path == "/api/found-items":
+            data = read_data()
+            items = data.get("foundItems", [])
+            if "summary=1" in parsed_path.query:
+                items = [{key: value for key, value in item.items() if key != "imageData"} for item in items]
+            self.send_json(200, {"version": data.get("version", 1), "items": items})
+            return
+        parts = path.strip("/").split("/")
+        if len(parts) == 3 and parts[:2] == ["api", "found-items"]:
+            data = read_data()
+            item = next((entry for entry in data.get("foundItems", []) if entry["id"] == parts[2]), None)
+            if not item:
+                self.send_json(404, {"error": "找不到这件物资"})
+            else:
+                self.send_json(200, {"item": item})
+            return
         super().do_GET()
 
+    @serialized_mutation
     def do_POST(self):
         path = urlparse(self.path).path
         try:
+            if path == "/api/found-items":
+                body = self.read_body()
+                name = clean_text(body.get("name"), 100)
+                features = clean_text(body.get("features"), 1000)
+                uses = clean_text(body.get("uses"), 500)
+                location = clean_text(body.get("location"), 160)
+                image_data = str(body.get("imageData") or "")
+                if not name:
+                    raise ValueError("请填写物品名称")
+                if not location:
+                    raise ValueError("请填写物品位置")
+                if not features:
+                    raise ValueError("请填写物品特征")
+                if not image_data.startswith(("data:image/jpeg;base64,", "data:image/png;base64,", "data:image/webp;base64,")):
+                    raise ValueError("请选择 JPG、PNG 或 WebP 图片")
+                if len(image_data) > 2_100_000:
+                    raise ValueError("图片太大，请重新选择或压缩后上传")
+                try:
+                    encoded_image = image_data.split(",", 1)[1]
+                    base64.b64decode(encoded_image, validate=True)
+                except (IndexError, ValueError):
+                    raise ValueError("图片数据无效，请重新选择图片")
+                entry = {
+                    "id": str(uuid.uuid4()),
+                    "name": name,
+                    "features": features,
+                    "uses": uses,
+                    "location": location,
+                    "imageData": image_data,
+                    "department": "",
+                    "activity": "",
+                    "uploadedAt": now(),
+                    "updatedAt": now(),
+                }
+                with DATA_LOCK:
+                    data = read_data()
+                    data.setdefault("foundItems", []).insert(0, entry)
+                    write_data(data)
+                self.send_json(200, {"id": entry["id"], "version": data["version"]})
+                return
+
             if path == "/api/boxes":
                 body = self.read_body()
                 data = read_data()
@@ -266,9 +339,26 @@ class Handler(SimpleHTTPRequestHandler):
             return
         self.send_json(404, {"error": "接口不存在"})
 
+    @serialized_mutation
     def do_PUT(self):
         try:
             parts = urlparse(self.path).path.strip("/").split("/")
+            if len(parts) == 3 and parts[:2] == ["api", "found-items"]:
+                body = self.read_body()
+                with DATA_LOCK:
+                    data = read_data()
+                    items = data.setdefault("foundItems", [])
+                    item = next((entry for entry in items if entry["id"] == parts[2]), None)
+                    if not item:
+                        self.send_json(404, {"error": "找不到这件物资"})
+                        return
+                    item["department"] = clean_text(body.get("department"), 100)
+                    item["activity"] = clean_text(body.get("activity"), 120)
+                    item["updatedAt"] = now()
+                    write_data(data)
+                self.send_json(200, {"id": item["id"], "version": data["version"]})
+                return
+
             if len(parts) == 3 and parts[:2] == ["api", "boxes"]:
                 body = self.read_body()
                 data = read_data()
@@ -322,6 +412,7 @@ class Handler(SimpleHTTPRequestHandler):
             return
         self.send_json(404, {"error": "接口不存在"})
 
+    @serialized_mutation
     def do_DELETE(self):
         try:
             parts = urlparse(self.path).path.strip("/").split("/")

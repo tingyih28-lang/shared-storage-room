@@ -290,6 +290,13 @@ def build_local_api(seed: dict) -> str:
 
 def build() -> None:
     html = (PUBLIC / "index.html").read_text("utf-8")
+    html = re.sub(
+        r'\s*<a class="portal-card" href="\.\/community-inventory\/">.*?<\/a>',
+        "",
+        html,
+        count=1,
+        flags=re.DOTALL,
+    )
     css = (PUBLIC / "styles.css").read_text("utf-8")
     app = (PUBLIC / "app.js").read_text("utf-8")
     seed = json.loads((ROOT / "data" / "storage.json").read_text("utf-8"))

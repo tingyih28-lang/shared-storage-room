@@ -100,9 +100,9 @@ h4 {
 
 .portal-options {
   display: grid;
-  grid-template-columns: repeat(2, minmax(220px, 320px));
+  grid-template-columns: repeat(3, minmax(220px, 320px));
   gap: 18px;
-  width: min(680px, 100%);
+  width: min(1040px, 100%);
 }
 
 .portal-card {
@@ -116,6 +116,8 @@ h4 {
   background: rgba(255, 255, 255, 0.94);
   color: var(--ink);
   box-shadow: var(--shadow);
+  text-decoration: none;
+  cursor: pointer;
 }
 
 .portal-card:hover {

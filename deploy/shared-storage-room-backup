@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+source_dir="/opt/shared-storage-room/data"
+backup_dir="/var/backups/shared-storage-room"
+timestamp="$(date -u +%Y%m%d-%H%M%S)"
+
+install -d -m 700 -o root -g root "$backup_dir"
+tar -czf "$backup_dir/storage-room-$timestamp.tar.gz" \
+  -C "$source_dir" storage.json
+chmod 600 "$backup_dir/storage-room-$timestamp.tar.gz"
+find "$backup_dir" -type f -name 'storage-room-*.tar.gz' -mtime +30 -delete
+
