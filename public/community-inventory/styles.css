@@ -77,6 +77,8 @@ main { width: min(1180px, calc(100% - 40px)); margin: 0 auto; }
 .section-heading h2, .list-heading h2 { margin-top: 5px; font-size: 21px; }
 .section-heading p { max-width: 390px; color: var(--muted); font-size: 13px; line-height: 1.7; }
 .upload-form { display: grid; grid-template-columns: minmax(250px, 380px) minmax(0, 1fr); gap: 26px; padding: 22px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+.upload-location { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.upload-location small { grid-column: 1 / -1; color: var(--muted); }
 .photo-field { min-width: 0; }
 .photo-drop { position: relative; display: grid; min-height: 300px; overflow: hidden; place-items: center; border: 1px dashed #dcb8ad; border-radius: 6px; background: #fff9f5; cursor: pointer; }
 .photo-drop:hover { border-color: var(--rose); background: #fff5f1; }
@@ -114,10 +116,17 @@ input::placeholder, textarea::placeholder { color: #ae9d96; }
 .item-meta dt { display: inline; color: #99867f; }
 .item-meta dd { display: inline; margin: 0 0 0 4px; color: #56463f; overflow-wrap: anywhere; }
 .item-meta .item-uses-row { grid-column: 1 / -1; }
-.claim-form { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr) auto; align-items: end; gap: 8px; padding-top: 11px; border-top: 1px solid #f2e8e3; }
+.claim-form { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)) auto; align-items: end; gap: 8px; padding-top: 11px; border-top: 1px solid #f2e8e3; }
 .claim-form label { display: grid; gap: 5px; }
 .claim-form input { min-height: 36px; padding: 7px 8px; font-size: 12px; }
 .save-claim { min-height: 36px; padding: 0 11px; font-size: 12px; white-space: nowrap; }
+.shared-edit { grid-column: 1 / -1; border-top: 1px solid #f2e8e3; padding-top: 9px; }
+.shared-edit summary { color: var(--rose-dark); cursor: pointer; }
+.shared-edit-fields { display: grid; gap: 8px; padding: 10px 0; }
+.shared-edit-fields label, .card-location label { display: grid; gap: 4px; color: #6e554c; font-size: 12px; }
+.shared-edit-fields textarea { min-height: 58px; }
+.shared-edit-fields input, .shared-edit-fields textarea, .card-location select { min-height: 34px; padding: 6px 8px; font-size: 12px; }
+.card-location { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 6px; }
 
 .search-box { display: flex; align-items: center; gap: 9px; min-height: 50px; padding: 0 12px; border: 1px solid #e6d5ce; border-radius: 6px; background: #fff; }
 .search-box:focus-within { border-color: #dd6577; box-shadow: 0 0 0 3px rgba(215, 66, 92, .1); }
@@ -162,6 +171,8 @@ input::placeholder, textarea::placeholder { color: #ae9d96; }
   .section-heading { display: block; }
   .section-heading p { margin-top: 8px; }
   .upload-form { grid-template-columns: 1fr; gap: 17px; padding: 13px; }
+  .upload-location { grid-template-columns: 1fr; }
+  .upload-location small { grid-column: auto; }
   .photo-drop, .photo-drop > img { min-height: 210px; max-height: 300px; }
   .item-card { grid-template-columns: 100px minmax(0,1fr); }
   .item-image { width: 100px; min-height: 220px; }
@@ -170,6 +181,7 @@ input::placeholder, textarea::placeholder { color: #ae9d96; }
   .item-meta { grid-template-columns: 1fr; gap: 5px; }
   .item-meta .item-uses-row { grid-column: auto; }
   .claim-form { grid-template-columns: 1fr 1fr; }
+  .card-location { grid-template-columns: 1fr; }
   .claim-form .save-claim { grid-column: 1 / -1; }
   .filter-row { align-items: stretch; }
   .filter-row label { flex: 1 1 130px; min-width: 0; }

@@ -1,4 +1,4 @@
-const locationConfig = [
+const defaultLocationConfig = [
   { name: "黑色柜子1", shelves: 3 },
   { name: "黑色柜子2", shelves: 4 },
   { name: "银色柜子1", shelves: 4 },
@@ -9,6 +9,7 @@ const locationConfig = [
   { name: "木柜（右）", shelves: 1, shelfNames: ["整体"] },
   { name: "地面", shelves: 0 }
 ];
+let locationConfig = defaultLocationConfig;
 
 const modeCopy = {
   office: {
@@ -55,6 +56,8 @@ const quantityDialog = document.querySelector("#quantityDialog");
 const quantityForm = document.querySelector("#quantityForm");
 const boxDialog = document.querySelector("#boxDialog");
 const boxForm = document.querySelector("#boxForm");
+const layoutDialog = document.querySelector("#layoutDialog");
+const layoutForm = document.querySelector("#layoutForm");
 const storageVisualizer = document.querySelector("#storageVisualizer");
 const shelfLayers = document.querySelector("#shelfLayers");
 const itemsBody = document.querySelector("#itemsBody");
@@ -103,15 +106,32 @@ function formData(form) {
   return Object.fromEntries(new FormData(form).entries());
 }
 
+async function compressImage(file) {
+  if (!file?.type.startsWith("image/")) throw new Error("请选择图片文件");
+  if (file.size > 15_000_000) throw new Error("原始图片超过 15 MB，请先压缩后再试");
+  const bitmap = await createImageBitmap(file);
+  const scale = Math.min(1, 1500 / Math.max(bitmap.width, bitmap.height));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+  canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+  canvas.getContext("2d").drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  bitmap.close();
+  const data = canvas.toDataURL("image/jpeg", 0.78);
+  if (data.length > 1_950_000) throw new Error("图片压缩后仍然太大，请换一张较小的图片");
+  return data;
+}
+
 function shelfOptions(config) {
-  if (config.shelves === 0) return ["无层数"];
+  if (config.name === "地面") return ["无层数"];
+  if (config.shelves === 0) return [];
   if (config.shelfNames) return config.shelfNames;
   return Array.from({ length: config.shelves }, (_, index) => `第${index + 1}层`);
 }
 
-function populateLocationControls(form, selectedCabinet = locationConfig[0].name, selectedShelf = "") {
+function populateLocationControls(form, selectedCabinet = locationConfig[0].name, selectedShelf = "", selectedBox = "") {
   const cabinetSelect = form.querySelector("[data-cabinet]");
   const shelfSelect = form.querySelector("[data-shelf]");
+  const boxSelect = form.querySelector("[data-box]");
   if (!cabinetSelect || !shelfSelect) return;
   cabinetSelect.innerHTML = "";
 
@@ -138,19 +158,63 @@ function populateLocationControls(form, selectedCabinet = locationConfig[0].name
     }
     shelfSelect.disabled = config.shelves === 0;
     shelfSelect.value = options.includes(selectedShelf) ? selectedShelf : options[0];
+    refreshBoxes();
+  }
+
+  function refreshBoxes() {
+    if (!boxSelect) return;
+    const prior = selectedBox || boxSelect.value;
+    const matches = state.boxes.filter(box => box.cabinet === cabinetSelect.value && box.shelf === shelfSelect.value);
+    boxSelect.replaceChildren(new Option(matches.length ? "请选择箱子/袋子" : "本层暂无箱袋", ""));
+    matches.forEach(box => boxSelect.add(new Option(`${box.label}（${box.position}）`, box.id)));
+    boxSelect.value = matches.some(box => box.id === prior) ? prior : "";
   }
 
   cabinetSelect.onchange = () => {
     selectedShelf = "";
+    selectedBox = "";
     refreshShelves();
   };
+  shelfSelect.onchange = () => { selectedBox = ""; refreshBoxes(); };
   refreshShelves();
 }
 
 function buildLocation(data) {
+  const box = state.boxes.find(entry => entry.id === data.boxId);
+  if (box) return `${box.cabinet} · ${box.shelf} · ${box.label}`;
   if (data.cabinet === "地面") return "地面";
   return `${data.cabinet} · ${data.shelf}`;
 }
+
+function renderLayoutForm() {
+  const fields = document.querySelector("#layoutFields");
+  if (!fields) return;
+  fields.replaceChildren();
+  locationConfig.filter(config => !config.shelfNames && config.name !== "地面").forEach(config => {
+    const label = document.createElement("label");
+    label.textContent = config.name;
+    const input = document.createElement("input");
+    input.type = "number";
+    input.min = "0";
+    input.max = "12";
+    input.name = config.name;
+    input.value = config.shelves;
+    input.required = true;
+    label.appendChild(input);
+    fields.appendChild(label);
+  });
+}
+
+layoutForm.addEventListener("submit", async event => {
+  event.preventDefault();
+  if (!requireActor()) return;
+  const layout = Object.fromEntries([...new FormData(layoutForm)].map(([name, value]) => [name, Number(value)]));
+  try {
+    await api("/api/layout", { method: "PUT", body: JSON.stringify({ layout, actor: actor() }) });
+    layoutDialog.close();
+    showToast("柜子层数已保存");
+  } catch (error) { showToast(error.message); }
+});
 
 function parseLocation(location) {
   const text = String(location || "");
@@ -190,6 +254,21 @@ function updateState(payload) {
   state.items = payload.items || [];
   state.logs = payload.logs || [];
   state.boxes = payload.boxes || [];
+  if (payload.layout) {
+    locationConfig = defaultLocationConfig.map(config => ({
+      ...config,
+      shelves: config.shelfNames ? config.shelves : Number(payload.layout[config.name] ?? config.shelves)
+    }));
+  }
+  document.querySelectorAll("[data-location-picker]").forEach(form => {
+    populateLocationControls(
+      form,
+      form.querySelector("[data-cabinet]")?.value,
+      form.querySelector("[data-shelf]")?.value,
+      form.querySelector("[data-box]")?.value
+    );
+  });
+  renderLayoutForm();
   render();
   syncStatus.textContent = `已同步，版本 ${state.version}`;
 }
@@ -220,6 +299,8 @@ function itemMatchesSearch(item, keyword) {
     item.location,
     item.keeper,
     item.owner,
+    item.department,
+    item.activity,
     item.note,
     item.lastActor,
     operationText
@@ -248,24 +329,30 @@ function createBoxCard(box) {
   const card = document.createElement("article");
   card.className = "storage-box";
 
-  const documentLink = document.createElement("a");
+  const documentLink = document.createElement(box.documentUrl ? "a" : "div");
   documentLink.className = "box-document";
-  documentLink.href = box.documentUrl;
-  documentLink.target = "_blank";
-  documentLink.rel = "noopener noreferrer";
-  documentLink.title = `打开“${box.label}”的物资清单文档`;
+  if (box.documentUrl) {
+    documentLink.href = box.documentUrl;
+    documentLink.target = "_blank";
+    documentLink.rel = "noopener noreferrer";
+    documentLink.title = `打开“${box.label}”的物资清单文档`;
+  }
 
   const title = document.createElement("strong");
   title.textContent = box.label;
   const position = document.createElement("span");
   position.textContent = `位置：${box.position}`;
-  const department = document.createElement("span");
-  department.textContent = `部组：${box.department}`;
-  const activity = document.createElement("span");
-  activity.textContent = `活动：${box.activity || "日常物资"}`;
+  const kind = document.createElement("span");
+  kind.textContent = box.kind || "箱子";
   const documentHint = document.createElement("small");
-  documentHint.textContent = "打开物资清单 ↗";
-  documentLink.append(title, position, department, activity, documentHint);
+  documentHint.textContent = box.documentUrl ? "打开物资清单 ↗" : "箱袋内物资";
+  documentLink.append(title, kind, position, documentHint);
+  const storedItems = state.items.filter(item => item.boxId === box.id);
+  if (storedItems.length) {
+    const contents = document.createElement("span");
+    contents.textContent = `物资：${storedItems.map(item => item.name).join("、")}`;
+    documentLink.appendChild(contents);
+  }
 
   const actions = document.createElement("div");
   actions.className = "box-actions";
@@ -348,9 +435,8 @@ function openBoxDialog(box = null, shelf = "") {
     box?.shelf || shelf
   );
   boxForm.label.value = box?.label || "";
+  boxForm.kind.value = box?.kind === "袋子" || box?.kind === "bag" ? "bag" : "box";
   boxForm.position.value = box?.position || "";
-  boxForm.department.value = box?.department || "";
-  boxForm.activity.value = box?.activity || "";
   boxForm.documentUrl.value = box?.documentUrl || "";
   boxDialog.showModal();
 }
@@ -382,6 +468,7 @@ function applyMode(mode) {
   document.querySelector("#formTitle").textContent = copy.form;
   document.querySelector("#listTitle").textContent = copy.list;
   document.querySelector("#placeColumn").textContent = copy.place;
+  document.querySelector("#ownerColumn").textContent = mode === "office" ? "部组/活动" : "负责人";
   document.querySelector("#heroMascot").src = copy.mascot;
   searchInput.placeholder = copy.search;
   storageVisualizer.hidden = mode !== "office";
@@ -392,6 +479,7 @@ function applyMode(mode) {
 
 function setFormMode(form, mode) {
   const officeFields = form.querySelector("[data-location-picker]");
+  const officeMeta = form.querySelector(".office-item-fields");
   const keeperInput = form.querySelector("[name='keeper']");
   const keeperField = keeperInput?.closest(".field");
   const isKeeper = mode === "keeper";
@@ -402,6 +490,14 @@ function setFormMode(form, mode) {
       control.disabled = isKeeper;
       control.required = !isKeeper;
     }
+  }
+
+  if (officeMeta) {
+    officeMeta.hidden = isKeeper;
+    officeMeta.querySelectorAll("input, textarea").forEach(control => {
+      control.disabled = isKeeper;
+      if (control.name === "photo" || control.name === "features") control.required = !isKeeper;
+    });
   }
 
   if (keeperField && keeperInput) {
@@ -442,10 +538,12 @@ function render() {
     row.querySelector(".muted").textContent = `更新 ${formatTime(item.updatedAt)}`;
     row.children[1].textContent = state.mode === "keeper" ? item.keeper || "-" : item.location || "-";
     row.children[2].textContent = `${item.quantity} ${item.unit}`;
-    row.children[3].textContent = item.owner || "-";
+    row.children[3].textContent = state.mode === "office"
+      ? [item.department || item.owner, item.activity].filter(Boolean).join(" · ") || "-"
+      : item.owner || "-";
     row.children[4].textContent = item.lastActor || "-";
-    row.children[5].textContent = item.note || "-";
-    const labels = ["物品", state.mode === "keeper" ? "骨干名字" : "位置", "数量", "负责人", "最近操作人", "备注", "操作"];
+    row.children[5].textContent = item.note || item.features || "-";
+    const labels = ["物品", state.mode === "keeper" ? "骨干名字" : "位置", "数量", state.mode === "office" ? "部组/活动" : "负责人", "最近操作人", "备注", "操作"];
     row.querySelectorAll("td").forEach((cell, index) => {
       cell.dataset.label = labels[index];
     });
@@ -482,14 +580,26 @@ function openDetail(item) {
   detailMeta.innerHTML = `
     <div><dt>${placeLabel}</dt><dd></dd></div>
     <div><dt>数量</dt><dd></dd></div>
+    <div><dt>所属部组</dt><dd></dd></div>
+    <div><dt>活动</dt><dd></dd></div>
     <div><dt>负责人</dt><dd></dd></div>
     <div><dt>最近操作人</dt><dd></dd></div>
     <div><dt>备注</dt><dd></dd></div>
   `;
-  const values = [placeValue, `${item.quantity} ${item.unit}`, item.owner || "-", item.lastActor || "-", item.note || "-"];
+  const values = [placeValue, `${item.quantity} ${item.unit}`, item.department || "-", item.activity || "-", item.owner || "-", item.lastActor || "-", item.note || "-"];
   detailMeta.querySelectorAll("dd").forEach((dd, index) => {
     dd.textContent = values[index];
   });
+  document.querySelector("#detailFeatures").textContent = item.features ? `特征：${item.features}` : "";
+  document.querySelector("#detailUses").textContent = item.uses ? `可能用途：${item.uses}` : "";
+  const detailPhoto = document.querySelector("#detailPhoto");
+  detailPhoto.hidden = !item.hasImage;
+  if (item.hasImage) {
+    fetch(`/api/items/${encodeURIComponent(item.id)}`, { cache: "no-store" })
+      .then(response => response.json())
+      .then(record => { if (record.item?.imageData) detailPhoto.src = record.item.imageData; })
+      .catch(() => { detailPhoto.hidden = true; });
+  }
 
   const detailLogs = document.querySelector("#detailLogs");
   detailLogs.innerHTML = "";
@@ -547,6 +657,7 @@ boxForm.addEventListener("submit", async event => {
   const data = formData(boxForm);
   const body = {
     label: data.label,
+    kind: data.kind,
     cabinet: data.cabinet,
     shelf: data.cabinet === "地面" ? "无层数" : data.shelf,
     position: data.position,
@@ -569,7 +680,7 @@ boxForm.addEventListener("submit", async event => {
   }
 });
 
-function openEdit(item) {
+async function openEdit(item) {
   const category = item.category || "office";
   editForm.id.value = item.id;
   editForm.category.value = category;
@@ -579,10 +690,23 @@ function openEdit(item) {
   editForm.owner.value = item.owner || "";
   editForm.note.value = item.note || "";
   editForm.keeper.value = item.keeper || "";
+  editForm.features.value = item.features || "";
+  editForm.uses.value = item.uses || "";
+  editForm.photo.value = "";
+  const editPreview = document.querySelector("#editPhotoPreview");
+  editPreview.hidden = true;
   setFormMode(editForm, category);
   if (category === "office") {
     const parsed = parseLocation(item.location);
-    populateLocationControls(editForm, parsed.cabinet, parsed.shelf);
+    populateLocationControls(editForm, parsed.cabinet, parsed.shelf, item.boxId || "");
+    if (item.hasImage) {
+      try {
+        const response = await fetch(`/api/items/${encodeURIComponent(item.id)}`, { cache: "no-store" });
+        const record = await response.json();
+        editPreview.src = record.item?.imageData || "";
+        editPreview.hidden = !editPreview.src;
+      } catch {}
+    }
   }
   editDialog.showModal();
 }
@@ -605,6 +729,8 @@ itemForm.addEventListener("submit", async event => {
   event.preventDefault();
   if (!requireActor()) return;
   const data = formData(itemForm);
+  const photo = data.photo;
+  delete data.photo;
   const body = {
     ...data,
     category: state.mode,
@@ -613,6 +739,7 @@ itemForm.addEventListener("submit", async event => {
     actor: actor()
   };
   try {
+    if (state.mode === "office") body.imageData = await compressImage(photo);
     await api("/api/items", {
       method: "POST",
       body: JSON.stringify(body)
@@ -632,6 +759,8 @@ editForm.addEventListener("submit", async event => {
   event.preventDefault();
   if (!requireActor()) return;
   const data = formData(editForm);
+  const photo = data.photo;
+  delete data.photo;
   const body = {
     ...data,
     location: data.category === "office" ? buildLocation(data) : "",
@@ -639,6 +768,7 @@ editForm.addEventListener("submit", async event => {
     actor: actor()
   };
   try {
+    if (photo?.size) body.imageData = await compressImage(photo);
     await api(`/api/items/${data.id}`, {
       method: "PUT",
       body: JSON.stringify(body)
@@ -662,6 +792,17 @@ function init() {
   document.querySelectorAll("[data-box-close]").forEach(button => {
     button.addEventListener("click", () => boxDialog.close());
   });
+  document.querySelectorAll("[data-layout-close]").forEach(button => button.addEventListener("click", () => layoutDialog.close()));
+  document.querySelector("#layoutButton").addEventListener("click", () => { renderLayoutForm(); layoutDialog.showModal(); });
+  for (const [inputSelector, previewSelector] of [["#itemForm [name='photo']", "#itemPhotoPreview"], ["#editForm [name='photo']", "#editPhotoPreview"]]) {
+    document.querySelector(inputSelector).addEventListener("change", async event => {
+      const file = event.currentTarget.files?.[0];
+      if (!file) return;
+      const preview = document.querySelector(previewSelector);
+      try { preview.src = await compressImage(file); preview.hidden = false; }
+      catch (error) { event.currentTarget.value = ""; showToast(error.message); }
+    });
+  }
   document.querySelectorAll("[data-cabinet-link]").forEach(link => {
     link.addEventListener("click", () => {
       selectedCabinet = link.dataset.cabinetLink;

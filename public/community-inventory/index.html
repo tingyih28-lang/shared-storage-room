@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#fff8f4">
     <title>物资待认领 · 北京大学学生爱心社</title>
-    <link rel="stylesheet" href="./styles.css?v=20261009-1">
-    <script src="./app.js?v=20261009-1" defer></script>
+    <link rel="stylesheet" href="./styles.css?v=20261011-1">
+    <script src="./app.js?v=20261011-1" defer></script>
   </head>
   <body>
     <header class="topbar">
@@ -22,7 +22,7 @@
         <div class="intro-copy">
           <span class="eyebrow">一起认领，让物资找到来处</span>
           <h1 id="pageTitle">物资待认领</h1>
-          <p>先拍下还不确定归属的物资，大家再一起补上部组和活动信息。</p>
+          <p>社办库存与这里共用同一份物资信息，可补充归属、修改资料并更新存放位置。</p>
         </div>
         <img src="../assets/xiaoai-peek.png" alt="小爱同学陪你整理物资">
         <div class="intro-rule" aria-hidden="true"></div>
@@ -57,14 +57,20 @@
           </div>
 
           <div class="fields">
-            <label class="field">
-              <span>物品名字 <b>*</b></span>
-              <input name="name" maxlength="100" placeholder="例如：蓝色折叠展架" required>
-            </label>
-            <label class="field">
-              <span>所在位置 <b>*</b></span>
-              <input name="location" maxlength="160" placeholder="例如：社办门口右侧纸箱旁" required>
-            </label>
+          <label class="field">
+            <span>物品名字 <b>*</b></span>
+            <input name="name" maxlength="100" placeholder="例如：蓝色折叠展架" required>
+          </label>
+          <label class="field">
+            <span>操作人 <b>*</b></span>
+            <input name="actor" maxlength="60" placeholder="填写你的姓名或社团昵称" required>
+          </label>
+            <div class="upload-location" data-location-picker>
+              <label class="field"><span>柜子/区域</span><select name="cabinet" data-cabinet></select></label>
+              <label class="field"><span>层数</span><select name="shelf" data-shelf></select></label>
+              <label class="field"><span>箱子/袋子</span><select name="boxId" data-box></select></label>
+              <small>暂时不知道位置时可留空，之后再补充。</small>
+            </div>
             <label class="field">
               <span>物品特征 <b>*</b></span>
               <textarea name="features" maxlength="1000" rows="3" placeholder="颜色、材质、尺寸、上面的标记等" required></textarea>
@@ -90,7 +96,7 @@
             <span class="eyebrow">02 / 补上归属</span>
             <h2 id="identifyHeading">一起辨认这些物资</h2>
           </div>
-          <p>选择或填写所属部组、活动名称，保存后大家都能搜索到。</p>
+          <p>补充部组和活动归属，或修正物品资料与箱袋位置；保存后社办库存同步更新。</p>
         </div>
         <label class="search-box">
           <span aria-hidden="true">⌕</span>
@@ -124,12 +130,28 @@
           <dl class="item-meta">
             <div><dt>位置</dt><dd class="item-location"></dd></div>
             <div><dt>上传时间</dt><dd class="item-time"></dd></div>
+            <div><dt>最近操作人</dt><dd class="item-actor"></dd></div>
             <div class="item-uses-row"><dt>可能用途</dt><dd class="item-uses"></dd></div>
           </dl>
           <form class="claim-form">
+            <label>操作人<input class="actor-input" maxlength="60" placeholder="填写你的姓名或社团昵称" required></label>
             <label>所属部组<input class="department-input" maxlength="100" list="departments" placeholder="例如：宣传部"></label>
             <label>活动名称<input class="activity-input" maxlength="120" list="activities" placeholder="例如：迎新活动"></label>
-            <button class="save-claim" type="submit">保存归属</button>
+            <details class="shared-edit">
+              <summary>编辑物资与位置</summary>
+              <div class="shared-edit-fields">
+                <label>物品名称<input class="name-input" maxlength="100" required></label>
+                <label>物品特征与描述<textarea class="features-input" maxlength="1000" rows="3" required></textarea></label>
+                <label>可能用途<textarea class="uses-input" maxlength="500" rows="2"></textarea></label>
+                <label>更换照片<input class="image-input" type="file" accept="image/jpeg,image/png,image/webp"></label>
+                <div class="card-location" data-location-picker>
+                  <label>柜子/区域<select data-cabinet></select></label>
+                  <label>层数<select data-shelf></select></label>
+                  <label>箱子/袋子<select data-box></select></label>
+                </div>
+              </div>
+            </details>
+            <button class="save-claim" type="submit">保存共享信息</button>
           </form>
         </div>
       </article>

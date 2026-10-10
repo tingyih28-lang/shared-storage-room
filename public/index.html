@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>爱心社物资管理</title>
-    <link rel="stylesheet" href="./styles.css?v=20261009-2">
+    <link rel="stylesheet" href="./styles.css?v=20261011-1">
   </head>
   <body>
     <section id="portal" class="portal" aria-label="选择管理系统">
@@ -71,7 +71,7 @@
               <span class="eyebrow">社办可视化区域</span>
               <h2>点击货架，查看各层储物箱</h2>
             </div>
-            <span id="boxCount" class="count">0 个储物箱</span>
+            <div class="visualizer-actions"><span id="boxCount" class="count">0 个储物箱</span><button id="layoutButton" class="secondary" type="button">设置层数</button></div>
           </div>
 
           <nav class="storage-map" aria-label="社办货架平面图">
@@ -113,6 +113,12 @@
                 <span>层数</span>
                 <select name="shelf" data-shelf required></select>
               </label>
+              <label><span>箱子/袋子</span><select name="boxId" data-box required></select></label>
+            </div>
+            <div id="itemPhotoFields" class="office-item-fields">
+              <label class="field"><span>物资照片 <strong>*</strong></span><input name="photo" type="file" accept="image/jpeg,image/png,image/webp" required><img id="itemPhotoPreview" class="form-photo-preview" alt="物资照片预览" hidden></label>
+              <label class="field"><span>物品特征与描述 <strong>*</strong></span><textarea name="features" placeholder="请描述颜色、材质、尺寸、标记等" required></textarea></label>
+              <label class="field"><span>可能用途</span><textarea name="uses" placeholder="可选填写可能用途"></textarea></label>
             </div>
             <label id="keeperField" class="field" hidden>
               <span>骨干名字 <strong>*</strong></span>
@@ -155,7 +161,7 @@
                   <th>物品</th>
                   <th id="placeColumn">位置</th>
                   <th>数量</th>
-                  <th>负责人</th>
+                  <th id="ownerColumn">负责人</th>
                   <th>最近操作人</th>
                   <th>备注</th>
                   <th>操作</th>
@@ -190,6 +196,9 @@
           <button type="button" class="ghost-button" data-detail-close>关闭</button>
         </div>
         <dl id="detailMeta" class="detail-meta"></dl>
+        <img id="detailPhoto" class="detail-photo" alt="物资照片" hidden>
+        <p id="detailFeatures" class="detail-copy"></p>
+        <p id="detailUses" class="detail-copy"></p>
         <h3>近期 10 次操作</h3>
         <ol id="detailLogs" class="detail-logs"></ol>
       </article>
@@ -210,6 +219,12 @@
             <span>层数</span>
             <select name="shelf" data-shelf required></select>
           </label>
+          <label><span>箱子/袋子</span><select name="boxId" data-box required></select></label>
+        </div>
+        <div id="editOfficeMeta" class="office-item-fields">
+          <label class="field"><span>替换物资照片</span><input name="photo" type="file" accept="image/jpeg,image/png,image/webp"><img id="editPhotoPreview" class="form-photo-preview" alt="当前物资照片" hidden></label>
+          <label class="field"><span>物品特征与描述</span><textarea name="features" placeholder="颜色、材质、尺寸、标记等"></textarea></label>
+          <label class="field"><span>可能用途</span><textarea name="uses" placeholder="可能用途"></textarea></label>
         </div>
         <label id="editKeeperField" class="field" hidden>
           <span>骨干名字 <strong>*</strong></span>
@@ -259,6 +274,7 @@
         </div>
         <input type="hidden" name="id">
         <label>储物箱名称或编号 <strong>*</strong><input name="label" placeholder="如：手语分社 1 号箱" required></label>
+        <label>容器类型<select name="kind"><option value="box">箱子</option><option value="bag">袋子</option></select></label>
         <div class="location-grid" data-location-picker>
           <label>
             <span>柜子/区域 <strong>*</strong></span>
@@ -269,10 +285,8 @@
             <select name="shelf" data-shelf required></select>
           </label>
         </div>
-        <label>具体位置 <strong>*</strong><input name="position" placeholder="如：左侧、靠墙、从左第 2 个" required></label>
-        <label>所属部组 <strong>*</strong><input name="department" placeholder="如：组织部、手语分社" required></label>
-        <label>活动名称<input name="activity" placeholder="日常物资可留空"></label>
-        <label>物资清单文档链接 <strong>*</strong><input name="documentUrl" type="url" placeholder="https://..." required></label>
+        <label>具体位置 <strong>*</strong><input name="position" placeholder="如：靠左、靠外第2个" required></label>
+        <label>清单文档链接<input name="documentUrl" type="url" placeholder="可选：https://..."></label>
         <div class="dialog-actions">
           <button type="button" data-box-close>取消</button>
           <button type="submit">保存储物箱</button>
@@ -280,7 +294,16 @@
       </form>
     </dialog>
 
+    <dialog id="layoutDialog">
+      <form id="layoutForm">
+        <div class="dialog-head"><div><span class="eyebrow">储物间设置</span><h2>设置柜子层数</h2></div><button type="button" class="ghost-button" data-layout-close>关闭</button></div>
+        <p class="dialog-note">木架和地面不是分层柜，层数固定。减少层数前需要先移走该层已有箱袋。</p>
+        <div id="layoutFields" class="layout-fields"></div>
+        <div class="dialog-actions"><button type="button" data-layout-close>取消</button><button type="submit">保存层数</button></div>
+      </form>
+    </dialog>
+
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
-    <script src="./app.js?v=20261006-2"></script>
+    <script src="./app.js?v=20261011-1"></script>
   </body>
 </html>

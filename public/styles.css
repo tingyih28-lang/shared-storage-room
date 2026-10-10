@@ -307,6 +307,8 @@ h4 {
   margin-top: 6px;
 }
 
+.visualizer-actions { display: flex; align-items: center; gap: 12px; }
+
 .storage-map {
   display: grid;
   grid-template-columns: repeat(12, minmax(0, 1fr));
@@ -596,6 +598,13 @@ select:disabled {
   gap: 10px;
 }
 
+#officeFields,
+#editOfficeFields { grid-template-columns: 1fr; }
+.office-item-fields { display: grid; gap: 12px; }
+.form-photo-preview { display: block; width: 100%; max-height: 180px; object-fit: contain; border: 1px solid var(--line); border-radius: 6px; background: #fff; }
+.layout-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.layout-fields label { display: grid; gap: 6px; }
+
 button {
   border: 0;
   border-radius: 6px;
@@ -872,6 +881,9 @@ dialog form,
   list-style: none;
 }
 
+.detail-photo { display: block; max-width: 100%; max-height: 360px; margin: 0 auto 14px; object-fit: contain; }
+.detail-copy { margin: 8px 0; color: var(--muted); line-height: 1.7; white-space: pre-wrap; }
+
 .detail-logs strong,
 .detail-logs span {
   display: block;
@@ -992,6 +1004,8 @@ dialog form,
     align-items: stretch;
     flex-direction: column;
   }
+
+  .visualizer-actions { justify-content: space-between; }
 
   .storage-map {
     grid-template-columns: repeat(2, minmax(0, 1fr));

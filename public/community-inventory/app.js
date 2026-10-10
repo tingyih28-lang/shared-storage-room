@@ -1,4 +1,4 @@
-const state = { items: [], version: 0, activeTab: "upload", unclaimedOnly: false };
+const state = { items: [], boxes: [], layout: {}, version: 0, activeTab: "upload", unclaimedOnly: false };
 
 const uploadForm = document.querySelector("#uploadForm");
 const photoInput = document.querySelector("#photoInput");
@@ -49,10 +49,13 @@ async function loadItems(silent = false) {
     if (payload.version !== state.version || !silent) {
       state.version = payload.version;
       const previous = new Map(state.items.map(item => [item.id, item]));
+      state.boxes = payload.boxes || [];
+      state.layout = payload.layout || {};
       state.items = (payload.items || []).map(item => ({ ...item, imageData: item.imageData || previous.get(item.id)?.imageData || "" }));
       const missingImages = state.items.filter(item => !item.imageData);
       const fullItems = await Promise.all(missingImages.map(item => api(`/api/found-items/${encodeURIComponent(item.id)}`)));
       fullItems.forEach((record, index) => { state.items.find(item => item.id === missingImages[index].id).imageData = record.item.imageData; });
+      updateAllLocationPickers();
       render();
     }
     syncStatus.textContent = "已同步到共享清单";
@@ -72,12 +75,13 @@ function makeCard(item) {
   const card = fragment.querySelector(".item-card");
   card.dataset.itemId = item.id;
   const image = card.querySelector(".item-image");
-  image.src = item.imageData;
+  image.src = item.imageData || "../assets/xiaoai-peek.png";
   image.alt = `${item.name}的物资照片`;
   card.querySelector(".item-name").textContent = item.name;
   card.querySelector(".item-features").textContent = item.features;
-  card.querySelector(".item-location").textContent = item.location;
+  card.querySelector(".item-location").textContent = item.location || "待整理，尚未放入箱袋";
   card.querySelector(".item-time").textContent = timeLabel(item.uploadedAt);
+  card.querySelector(".item-actor").textContent = item.lastActor || "暂未记录";
   const usesRow = card.querySelector(".item-uses-row");
   if (item.uses) card.querySelector(".item-uses").textContent = item.uses;
   else usesRow.hidden = true;
@@ -88,8 +92,60 @@ function makeCard(item) {
   status.classList.toggle("is-done", assigned);
   card.querySelector(".department-input").value = item.department || "";
   card.querySelector(".activity-input").value = item.activity || "";
+  card.querySelector(".actor-input").value = localStorage.getItem("storage-room-actor") || "";
+  card.querySelector(".name-input").value = item.name || "";
+  card.querySelector(".features-input").value = item.features || "";
+  card.querySelector(".uses-input").value = item.uses || "";
+  populateCardLocation(card, item);
   card.querySelector(".claim-form").addEventListener("submit", event => saveClaim(event, item.id));
+  card.querySelector(".actor-input").addEventListener("input", event => {
+    localStorage.setItem("storage-room-actor", event.currentTarget.value.trim());
+  });
+  card.querySelector(".image-input").addEventListener("change", event => {
+    const file = event.currentTarget.files?.[0];
+    if (!file) return;
+    imageAsDataUrl(file).then(value => { card.dataset.pendingImage = value; image.src = value; }).catch(error => showToast(error.message));
+  });
   return fragment;
+}
+
+function cabinetOptions() {
+  return Object.keys(state.layout).filter(name => name !== "地面");
+}
+
+function fillPicker(picker, item = {}) {
+  const cabinet = picker.querySelector("[data-cabinet]");
+  const shelf = picker.querySelector("[data-shelf]");
+  const box = picker.querySelector("[data-box]");
+  const priorCabinet = cabinet.value;
+  const priorShelf = shelf.value;
+  const priorBox = box.value;
+  const cabinets = cabinetOptions();
+  cabinet.replaceChildren(new Option("选择柜子", ""), ...cabinets.map(name => new Option(name, name)));
+  const currentBox = state.boxes.find(entry => entry.id === (item.boxId || priorBox));
+  const chosenCabinet = currentBox?.cabinet || item.cabinet || priorCabinet || "";
+  cabinet.value = chosenCabinet;
+  const count = Number(state.layout[chosenCabinet] || 0);
+  const shelves = chosenCabinet.includes("木柜") ? ["整体"] : Array.from({ length: count }, (_, index) => `第${index + 1}层`);
+  shelf.replaceChildren(new Option("选择层数", ""), ...shelves.map(name => new Option(name, name)));
+  const chosenShelf = currentBox?.shelf || item.shelf || priorShelf || "";
+  shelf.value = chosenShelf;
+  const matches = state.boxes.filter(entry => entry.cabinet === cabinet.value && entry.shelf === shelf.value);
+  box.replaceChildren(new Option(matches.length ? "选择箱子/袋子" : "本层暂无箱袋", ""), ...matches.map(entry => new Option(`${entry.label}（${entry.position}）`, entry.id)));
+  const selected = item.boxId || priorBox;
+  box.value = matches.some(entry => entry.id === selected) ? selected : "";
+  cabinet.onchange = () => { shelf.value = ""; fillPicker(picker); };
+  shelf.onchange = () => { box.value = ""; fillPicker(picker); };
+}
+
+function updateAllLocationPickers() {
+  const upload = document.querySelector("#uploadForm [data-location-picker]");
+  if (upload) fillPicker(upload);
+}
+
+function populateCardLocation(card, item) {
+  const picker = card.querySelector(".card-location");
+  fillPicker(picker, item);
 }
 
 function appendEmpty(container, title, description) {
@@ -136,7 +192,7 @@ function render() {
     if (departmentFilter.value && item.department !== departmentFilter.value) return false;
     if (activityFilter.value && item.activity !== activityFilter.value) return false;
     if (!query) return true;
-    return [item.department, item.activity, item.name, item.features, item.uses, item.location]
+    return [item.department, item.activity, item.name, item.features, item.uses, item.location, item.lastActor]
       .some(value => String(value || "").toLocaleLowerCase().includes(query));
   });
   identifiedItems.replaceChildren();
@@ -213,22 +269,26 @@ uploadForm.addEventListener("submit", async event => {
   event.preventDefault();
   const file = photoInput.files?.[0];
   if (!file) return showToast("请先选择物品图片");
+  const form = new FormData(uploadForm);
+  const actor = form.get("actor").trim();
+  if (!actor) return showToast("请填写操作人");
+  localStorage.setItem("storage-room-actor", actor);
   uploadButton.disabled = true;
   uploadButton.textContent = "正在上传...";
   try {
     const imageData = await imageAsDataUrl(file);
-    const form = new FormData(uploadForm);
     await api("/api/found-items", {
       method: "POST",
       body: JSON.stringify({
         name: form.get("name"),
-        location: form.get("location"),
+        boxId: form.get("boxId"),
         features: form.get("features"),
         uses: form.get("uses"),
-        imageData
+        imageData,
+        actor
       })
     });
-    await loadItems(true);
+    await loadItems(false);
     uploadForm.reset();
     photoPreview.removeAttribute("src");
     photoPreview.hidden = true;
@@ -249,21 +309,33 @@ async function saveClaim(event, id) {
   const button = form.querySelector(".save-claim");
   const department = form.querySelector(".department-input").value.trim();
   const activity = form.querySelector(".activity-input").value.trim();
-  if (!department && !activity) return showToast("请至少填写所属部组或活动名称");
+  const actor = form.querySelector(".actor-input").value.trim();
+  const card = form.closest(".item-card");
+  const name = form.querySelector(".name-input").value.trim();
+  const features = form.querySelector(".features-input").value.trim();
+  const uses = form.querySelector(".uses-input").value.trim();
+  const boxId = form.querySelector("[data-box]").value;
+  if (!actor) return showToast("请填写操作人");
+  if (!name || !features) return showToast("物品名称和特征不能为空");
+  localStorage.setItem("storage-room-actor", actor);
   button.disabled = true;
   button.textContent = "保存中";
   try {
     await api(`/api/found-items/${encodeURIComponent(id)}`, {
       method: "PUT",
-      body: JSON.stringify({ department, activity })
+      body: JSON.stringify({
+        department, activity, name, features, uses, boxId,
+        ...(card.dataset.pendingImage ? { imageData: card.dataset.pendingImage } : {}),
+        actor
+      })
     });
-    await loadItems(true);
-    showToast("归属信息已保存");
+    await loadItems(false);
+    showToast("物资资料已同步到社办库存");
   } catch (error) {
     showToast(error.message);
   } finally {
     button.disabled = false;
-    button.textContent = "保存归属";
+    button.textContent = "保存共享信息";
   }
 }
 
@@ -287,4 +359,9 @@ showUnclaimed.addEventListener("click", () => {
 });
 
 loadItems();
+const uploadActorInput = uploadForm.querySelector("[name='actor']");
+uploadActorInput.value = localStorage.getItem("storage-room-actor") || "";
+uploadActorInput.addEventListener("input", event => {
+  localStorage.setItem("storage-room-actor", event.currentTarget.value.trim());
+});
 setInterval(() => loadItems(true), 5000);
